@@ -1,0 +1,7 @@
+To Run via command line: 
+server: java ChatServer.Server
+alice: java ChatClient.Client Alice Alice
+bob: java ChatClient.Client Bob Bob
+
+To compile via command line: 
+javac -d . *.java within parent file
