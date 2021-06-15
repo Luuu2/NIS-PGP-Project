@@ -4,10 +4,20 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.ArrayList;
 import java.util.List;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.security.*;
+
+// // Sign the new KeyPair with the root cert Private Key
+// ContentSigner csrContentSigner = csrBuilder.build(rootKeyPair.getPrivate());
+/// PKCS10CertificationRequest csr = p10Builder.build(csrContentSigner);
 
 public class Server {
     private final int serverPort;
     private ArrayList<ServerWorker> workerList = new ArrayList<>();
+    private static final String BC_PROVIDER = "BC";
+    private static final String KEY_ALGORITHM = "RSA";
+    private static final String SIGNATURE_ALGORITHM = "SHA256withRSA";
     
 
     public static void main(String[] args) {
@@ -15,6 +25,16 @@ public class Server {
         Server server = new Server(port);
         server.run();
         
+    }
+
+    static KeyStore ImportKeyPairFromKeystoreFile(String fileName, Certificate certificate, String alias, String fileName, String storeType, String storePass) throws Exception {
+        FileInputStream keyStoreOs = new FileInputStream(fileName);
+        KeyStore sslKeyStore = KeyStore.getInstance(storeType, BC_PROVIDER);
+        //KeyStore sslKeyStore = KeyStore.getInstance(storeType, BC_PROVIDER);
+        //sslKeyStore.load(null, null);
+        //sslKeyStore.setKeyEntry(alias, keyPair.getPrivate(),null, new Certificate[]{certificate});
+        
+       // sslKeyStore.store(keyStoreOs, storePass.toCharArray());
     }
 
     public Server (int serverPort){
