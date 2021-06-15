@@ -5,3 +5,7 @@ bob: java ChatClient.Client Bob Bob
 
 To compile via command line: 
 javac -d . *.java within parent file
+
+To compile via command line using the BouncyCastle .jar file from within the respective folders (CAServer, ChatSever, ClientServer)
+java -cp '../lib/*' <filename>.java 
+java -cp '../lib/*' <filename>.java 
