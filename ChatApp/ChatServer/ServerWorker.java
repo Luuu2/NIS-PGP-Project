@@ -56,12 +56,35 @@ public class ServerWorker extends Thread {
                     String[] msgTokens = line.split(" ", 3);
                     handleMessage(msgTokens);
                 }
+                else if ("img".equalsIgnoreCase(cmd)){
+                    String[] imgTokens = line.split(" ", 4);
+                    handleImage(imgTokens);
+                }
                 else{
                     String msg = "Unknown " + cmd + "\n";
                     output.write(msg.getBytes());   
                 } 
             }
                      
+        }
+    }
+
+    private void handleImage(String[] tokens) {
+        String sendTo = tokens[1];
+        String img = tokens[2];
+        String caption = tokens[3];
+        
+        List<ServerWorker> workerList = server.getWorkerList();
+        for(ServerWorker worker: workerList){
+            if(sendTo.equalsIgnoreCase(worker.getLogin())){
+                String outMsg = "img "+ login +" "+ img+" "+ caption +"\n";
+                try {
+                    worker.send(outMsg);
+                } catch (IOException e) {
+                    // TODO Auto-generated catch block
+                    e.printStackTrace();
+                }
+            }
         }
     }
 

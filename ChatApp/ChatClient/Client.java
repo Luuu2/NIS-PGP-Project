@@ -102,6 +102,9 @@ public class Client{
                         else if(tokens[0].equalsIgnoreCase("msg")){
                             System.out.println(sender +": "+tokens[2]+"\n");
                         }
+                        else if(tokens[0].equalsIgnoreCase("img")){
+                            System.out.println(sender +": "+tokens[2]+"\n");
+                        }
                         else {
                             System.out.println(response+"\n");
                         }
@@ -129,6 +132,7 @@ public class Client{
                 boolean online = true;
                 while(online == true){
                     String message = scanner.nextLine();
+                    String [] tokens = message.split(" ", 3);
                     if(message.equalsIgnoreCase("quit") || message.equalsIgnoreCase("logoff")){
                         String cmd = "quit";
                         try {
