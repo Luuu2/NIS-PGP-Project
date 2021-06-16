@@ -3,8 +3,11 @@ package ChatServer;
 import java.net.Socket;
 import java.util.List;
 
+import javax.imageio.ImageIO;
+
 import java.io.InputStreamReader;
 import java.io.OutputStream;
+import java.awt.image.BufferedImage;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
@@ -52,9 +55,17 @@ public class ServerWorker extends Thread {
                 }else if("login".equalsIgnoreCase(cmd)){
                     handleLogin(output, tokens);
                 }
-                else if ("msg".equalsIgnoreCase(cmd)){
+                else if ("img".equalsIgnoreCase(cmd)){
                     String[] msgTokens = line.split(" ", 3);
+                    BufferedImage bi = ImageIO.read(input);
                     handleMessage(msgTokens);
+                }
+
+                else if("img".equalsIgnoreCase(cmd)){
+                    String[] imgTokens = line.split(" ", 3);
+                    for(int i = 0; i < imgTokens.length; i++){
+                        System.out.println(imgTokens[i]);
+                    }
                 }
                 else{
                     String msg = "Unknown " + cmd + "\n";
@@ -138,6 +149,7 @@ public class ServerWorker extends Thread {
     private void send(String msg) throws IOException {
         if(login !=null){
             output.write(msg.getBytes());
+            //System.out.println("I sent a message");
         }
     }
 

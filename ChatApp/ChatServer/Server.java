@@ -9,6 +9,7 @@ public class Server {
     private final int serverPort;
     private ArrayList<ServerWorker> workerList = new ArrayList<>();
     
+    
 
     public static void main(String[] args) {
         int port = 8818;

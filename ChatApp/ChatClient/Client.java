@@ -1,6 +1,8 @@
 package ChatClient;
 
 import java.io.BufferedReader;
+import java.io.ByteArrayOutputStream;
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -9,6 +11,10 @@ import java.io.PrintWriter;
 import java.net.Socket;
 import java.util.ArrayList;
 import java.util.Scanner;
+
+import javax.imageio.ImageIO;
+
+import java.awt.image.BufferedImage;
 
 
 public class Client{
@@ -45,7 +51,7 @@ public class Client{
         }
     }
 
-    public boolean connect(){
+    public boolean connect(){ // generate keys + send public keys to server + get reciever's public key
         try{
             this.socket = new Socket(serverName, serverPort);
             System.out.println("Connected to server");
@@ -101,6 +107,25 @@ public class Client{
                         }
                         else if(tokens[0].equalsIgnoreCase("msg")){
                             System.out.println(sender +": "+tokens[2]+"\n");
+
+                        
+
+
+                            /*
+                                1. Decrypt what is received
+                                    a. Decrypt using RSA alg (pvt key), to get key for AES
+                                    b. Decrypt using AES alg (session key from CA)
+                                2. Seperate caption from encoded image + hash
+                                3. Decode image
+                                4. Display image + caption
+
+                            */
+
+                        }
+
+                        // sent an image
+                        else if(tokens[0].equalsIgnoreCase("img")){
+                            System.out.println(sender + ": I sent an image");
                         }
                         else {
                             System.out.println(response+"\n");
@@ -128,19 +153,50 @@ public class Client{
             public void run(){
                 boolean online = true;
                 while(online == true){
-                    String message = scanner.nextLine();
-                    if(message.equalsIgnoreCase("quit") || message.equalsIgnoreCase("logoff")){
+                    String message = scanner.nextLine(); // what a person would've typed
+
+                    /*
+                       1. Selecting an image to send (uploading)
+                       2. Encode image
+                       3. Hash image + text
+                       4. Get image caption
+                       5. Cryptographic process
+                         a. Encrypt using AES alg (get shared key from CA)
+                         b. Encrypt AES key using RSA alg (receiver public key)
+                       6. Send to server - so they send to other side 
+                    */
+
+                    if(message.equalsIgnoreCase("quit") || message.equalsIgnoreCase("logoff")){ 
                         String cmd = "quit";
                         try {
-                            serverOut.write(cmd.getBytes());
+                            serverOut.write(cmd.getBytes()); // writing to server to quit
                         } catch (IOException e) {
                             e.printStackTrace();
                         }
                         break;
                     }
+                    // sending an image
+                    else if(message.startsWith("Image") || message.startsWith("image")){
+                        String cmd = "img " + receiver + " " + message + "\n";  
+
+                        try{
+                            serverOut.write(cmd.getBytes()); // writing to server
+                        }catch(IOException e){
+                            e.printStackTrace();
+                        }
+
+                    }
                     else{
-                        String cmd = "msg "+ receiver + " "+ message+"\n";
+                        String cmd = "img "+ receiver + " "+ message+"\n"; // what is to be encrypted 
+                        // want to get client to use: IMAGE FILEPATH CAPTION
                         try {
+
+                            /*
+                            // sending an image over a network
+                            BufferedImage image = ImageIO.read(new File(message));
+                            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+                            ImageIO.write(image, "jpg", baos);*/
+                            
                             serverOut.write(cmd.getBytes());
                         } catch (IOException e) {
                             e.printStackTrace();
