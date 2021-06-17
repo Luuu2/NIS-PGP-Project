@@ -9,9 +9,11 @@ import java.io.PrintWriter;
 import java.net.Socket;
 import java.util.ArrayList;
 import java.util.Scanner;
+import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.security.cert.Certificate;
+import java.security.cert.X509Certificate;
 import java.security.cert.CertificateFactory;
 import java.security.cert.CertificateException;
 import java.security.cert.CertificateEncodingException;
@@ -30,9 +32,8 @@ public class Client{
     private static final String BC_PROVIDER = "BC";
     private Socket socket;
     private Scanner scanner;
-    private Certificate certificate;
-    private Certificate rootCertificate;
-    private PrivateKey privatetKey;
+    private final Certificate certificate;
+    private final Certificate rootCertificate;
 
 
     public Client(String serverName, int serverPort, String userName, String password){
@@ -40,6 +41,22 @@ public class Client{
         this.serverPort = serverPort;
         this.userName = userName;
         this.password = password;
+
+        try{       
+            FileInputStream certFile = new FileInputStream( new File ( 
+                userName.equalsIgnoreCase("Bob") ? "PGP-iBcert.cer" : "PGP-iAcert.cer" ) );
+            FileInputStream certRootFile = new FileInputStream( new File ( "PGP-rcert.cer" ) );
+
+            CertificateFactory cf = CertificateFactory.getInstance("X.509");
+            
+            certificate = (X509Certificate)cf.generateCertificate(certFile);
+            rootCertificate = (X509Certificate)cf.generateCertificate(certRootFile);
+
+            certFile.close();
+            certRootFile.close();
+        }catch( Exception e ){
+            e.printStackTrace();
+        }
     }
 
     public static void main(String[] args){
