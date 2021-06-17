@@ -1,6 +1,8 @@
 package ChatServer;
 
 import java.net.Socket;
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 import java.util.List;
 
 import javax.imageio.ImageIO;
@@ -9,6 +11,10 @@ import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.awt.image.BufferedImage;
 import java.io.BufferedReader;
+import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 //import org.apache.commons.lang3.StringUtils;
@@ -19,15 +25,18 @@ public class ServerWorker extends Thread {
     private final Server server;
     private String login = null;
     private OutputStream output;
+    private InputStream input;
 
     public ServerWorker(Server server, Socket clientSocket){
         this.server = server;
         this.clientSocket = clientSocket;
     }
 
+
     public void run() {
         try{
-            HandleClient();
+            HandleClient(); // this method is only ever called when a thread is started
+            System.out.println("Running HandleClient...");
         } catch (IOException e){
             e.printStackTrace();
         } catch (InterruptedException e){
@@ -35,10 +44,12 @@ public class ServerWorker extends Thread {
         }
     }
 
+    
+
     private void HandleClient() throws IOException, InterruptedException{
         System.out.println("Server is still alive");
 
-        InputStream input = clientSocket.getInputStream();
+        this.input = clientSocket.getInputStream();
         this.output = clientSocket.getOutputStream();
 
         BufferedReader reader = new BufferedReader(new InputStreamReader(input));
@@ -48,24 +59,24 @@ public class ServerWorker extends Thread {
         while((line=reader.readLine())!=null){
             String [] tokens = line.split(" ");
             String cmd = tokens[0];
+            System.out.println("In handle client...");
             if (tokens !=null && tokens.length>0){
+                System.out.println("Looking at tokens...");
                 if("quit".equalsIgnoreCase(cmd) || "logoff".equalsIgnoreCase(cmd)){
                     handleLogoff();
                     break;
                 }else if("login".equalsIgnoreCase(cmd)){
                     handleLogin(output, tokens);
                 }
-                else if ("img".equalsIgnoreCase(cmd)){
+                else if ("msg".equalsIgnoreCase(cmd)){
                     String[] msgTokens = line.split(" ", 3);
-                    BufferedImage bi = ImageIO.read(input);
                     handleMessage(msgTokens);
                 }
-
-                else if("img".equalsIgnoreCase(cmd)){
-                    String[] imgTokens = line.split(" ", 3);
-                    for(int i = 0; i < imgTokens.length; i++){
-                        System.out.println(imgTokens[i]);
-                    }
+                else if ("img".equalsIgnoreCase(cmd)){
+                 //  System.out.println(tokens[0] + " " + tokens[1] + " " + tokens[2] + " "+ tokens[3]);
+                    String[] imgTokens = line.split(" ", 4);
+                    //System.out.println(line);
+                    handleImage(imgTokens);
                 }
                 else{
                     String msg = "Unknown " + cmd + "\n";
@@ -73,6 +84,79 @@ public class ServerWorker extends Thread {
                 } 
             }
                      
+        }
+    }
+
+    private void handleImage(String[] tokens) {
+        String sendTo = tokens[1];
+        String file = tokens[3];
+        String caption= tokens[2];
+
+        List<ServerWorker> workerList = server.getWorkerList();
+        for(ServerWorker worker: workerList){
+            if(sendTo.equalsIgnoreCase(worker.getLogin())){
+                String outMsg = "img "+ login +" "+ file + " "+caption+ "\n";
+                try {
+                    worker.send(outMsg);
+                } catch (IOException e) {
+                    // TODO Auto-generated catch block
+                    e.printStackTrace();
+                }
+            }
+        }
+        /*
+        try {
+            System.out.println("We're In!");
+           // decodeString(tokens);
+          //  encodeString(tokens);
+        } catch (Exception e) {
+            // TODO Auto-generated catch block
+            e.printStackTrace();
+        }*/
+    }
+
+    private void encodeString(String[] tokens) throws Exception {
+        String caption = tokens[3];
+        FileInputStream fis = new FileInputStream("/Users/aneledlamini/Desktop/NIS/sunset.jpg");
+        System.out.println("Still sending to client...");
+        BufferedImage bImage = ImageIO.read(new File("/Users/aneledlamini/Desktop/NIS/sunset.jpg"));
+        ByteArrayOutputStream bos = new ByteArrayOutputStream();
+        ImageIO.write(bImage, "jpg", bos);
+        System.out.println("Still sending to client...");
+        byte[] b = bos.toByteArray();
+        fis.read(b, 0, b.length); // reading all bytes of file
+        List<ServerWorker> workerList = server.getWorkerList();
+        for(ServerWorker worker: workerList){
+            if(!login.equals(worker.getLogin())){
+                try{
+                    String cmd = "img " + login + " " + Base64.getEncoder().encodeToString(b) + " " + caption + "\n";
+                    System.out.println("Still sending to client...");
+                    worker.send(cmd);
+                    System.out.println("Sent to worker...");
+                }
+                catch(IOException e){
+                    e.printStackTrace();
+                }
+            }
+        }
+    }
+
+    // tokens = 4
+    private void decodeString (String [] tokens) throws Exception{
+        System.out.println("Recieving from client...");
+        InputStream is = clientSocket.getInputStream();
+        FileOutputStream fos = new FileOutputStream("/Users/aneledlamini/Desktop/NIS/sunset.jpg"); // where the new file will be saved
+        try{
+            byte[] b = Base64.getDecoder().decode(new String(tokens[2]).getBytes("UTF-8"));
+            System.out.println("Recieving from client...");
+           // System.out.println(new String (b, StandardCharsets.UTF_8) + "\n");
+            is.read(b,0,b.length); //read bytes 
+            System.out.println("Ses'fikile...");
+            fos.write(b,0,b.length); // write bytes to new file
+            System.out.println("Received!");
+            System.out.println(tokens[3]);
+        }catch(Exception e){
+            e.printStackTrace();
         }
     }
 
@@ -149,7 +233,6 @@ public class ServerWorker extends Thread {
     private void send(String msg) throws IOException {
         if(login !=null){
             output.write(msg.getBytes());
-            //System.out.println("I sent a message");
         }
     }
 
