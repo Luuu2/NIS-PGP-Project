@@ -124,7 +124,7 @@ public class BouncyCastleCertificateGenerator {
         //System.out.println(issuedCert);
         //System.out.println(issuedCertKeyPair);
 
-       ///////////////////////////////    BOB    //////////////////////////////////////
+        ///////////////////////////////    BOB    //////////////////////////////////////
         // Generate a new KeyPair and sign it using the Root Cert Private Key
         // by generating a CSR (Certificate Signing Request)
         X500Name issuedBCertSubject = new X500Name("CN=PGP-iBcert");

@@ -9,7 +9,15 @@ import java.io.PrintWriter;
 import java.net.Socket;
 import java.util.ArrayList;
 import java.util.Scanner;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.security.cert.Certificate;
+import java.security.cert.CertificateFactory;
+import java.security.cert.CertificateException;
+import java.security.cert.CertificateEncodingException;
+import java.security.*;
 
+import org.bouncycastle.jce.provider.BouncyCastleProvider;
 
 public class Client{
     private final String serverName;
@@ -19,8 +27,12 @@ public class Client{
     private BufferedReader bufferIn;
     private final String userName;
     private final String password;
+    private static final String BC_PROVIDER = "BC";
     private Socket socket;
     private Scanner scanner;
+    private Certificate certificate;
+    private Certificate rootCertificate;
+    private PrivateKey privatetKey;
 
 
     public Client(String serverName, int serverPort, String userName, String password){
@@ -63,6 +75,13 @@ public class Client{
     }
 
     private boolean login() throws IOException {
+        // Certificaition Step
+        try{
+            handleCertification();
+        } catch (InterruptedException e){
+            e.printStackTrace();
+        }
+        // Certificaition Step
         String cmd = "login "+ userName + " "+ password+"\n";
         serverOut.write(cmd.getBytes());
         String response = bufferIn.readLine();
@@ -76,6 +95,67 @@ public class Client{
             return false;
         }
     }
+
+    private void handleCertification() throws IOException, InterruptedException{
+        System.out.println("Sending certificate to Server");
+        InputStream input = this.serverIn;
+        OutputStream output = this.serverOut;
+
+        //////////////////////////////////////
+        /**
+         * Sending user the server X509 certificate 
+        **/
+        System.out.println("Sending certificate to Client");
+        // Convert CERT into byte[]
+        byte[] certificateBytes = null;
+        try{
+            certificateBytes = certificate.getEncoded();
+        } catch( CertificateEncodingException e ){
+            System.out.println("Certificate Encoding Exception error");
+            e.printStackTrace();
+        } catch( Exception e ){
+            System.out.println("I don't know");
+            e.printStackTrace();
+        }
+        
+        if(certificateBytes == null){
+            System.out.println("Not Sending Certificate Bytes");
+        }else {
+            System.out.println("Sending Certificate Bytes");
+            output.write( certificateBytes );
+        }
+
+        //////////////////////////////////////////
+        CertificateFactory certFactory = null;                        
+        Certificate cert = null; // server certificate
+
+        /**
+         * Verifying server the X509 certificate 
+        **/
+        try{
+            certFactory = CertificateFactory.getInstance("X.509");                        
+            cert = certFactory.generateCertificate(input);
+            System.out.println("X.509 Certificate Constructed");
+        }catch( CertificateException e ){
+            System.out.println("X.509 Certificate Not Constructed");
+            e.printStackTrace();
+        } 
+
+        /**
+         * Verifying server the X509 certificate 
+        **/
+        try {
+            cert.verify(rootCertificate.getPublicKey(), Security.getProvider(BC_PROVIDER)); 
+        } catch (CertificateException | NoSuchAlgorithmException | InvalidKeyException e) {
+            //handle wrong algos
+            System.out.print("handle wrong algorithms");
+        } catch (SignatureException ex) {
+            //signature validation error
+            System.out.print("signature validation error");
+        }
+
+    }
+
 
     private void msgReader(){
         Thread t = new Thread(){
