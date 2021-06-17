@@ -105,10 +105,12 @@ public class Client {
                         } else if (tokens[0].equalsIgnoreCase("msg")) {
                             System.out.println(sender + ": " + tokens[2] + "\n");
                         } else if (tokens[0].equalsIgnoreCase("img")) {
-                            //System.out.println(sender + ": " + tokens[2] + "\n");
+                            // System.out.println(sender + ": " + tokens[2] + "\n");
                             try {
-                              //  System.out.println("");
-                                decodeString(tokens);
+                                // System.out.println("");
+                                String captionFile = new String(tokens[2]); // "caption space base64Image" 
+                                //System.out.println(captionFile);
+                                decodeString(captionFile.split(" ")); // new list format: [caption, base64Image]
                             } catch (Exception e) {
                                 e.printStackTrace();
                             }
@@ -167,58 +169,65 @@ public class Client {
         t.start();
     }
 
-    private void encodeString(String[] tokens, String receiver) throws Exception {
+    private void encodeString(String[] tokens, String receiver) throws Exception { // tokens format: [img,caption,file]
         String caption = tokens[1];
-        FileInputStream fis = new FileInputStream(tokens[2]);
+        File f = new File(tokens[2]); // file to be taken in (image path)
+        FileInputStream fis = new FileInputStream(f); // taking in file
         System.out.println("Still sending to server....");
-        BufferedImage bImage = ImageIO.read(new File(tokens[2]));
+        byte imageData[] = new byte[(int) f.length()];
+        fis.read(imageData);
+        String base64Image = Base64.getEncoder().encodeToString(imageData);
+       /* BufferedImage bImage = ImageIO.read(new File(tokens[2]));
         ByteArrayOutputStream bos = new ByteArrayOutputStream();
         ImageIO.write(bImage, "jpg", bos);
         byte[] b = bos.toByteArray();
-        fis.read(b, 0, b.length); // reading all bytes of file
+        fis.read(b, 0, b.length); // reading all bytes of file*/
         System.out.println("Still sending to server....");
-        String cmd = "img " + receiver + " " + Base64.getEncoder().encodeToString(b) + " " + caption + "\n";
+      //  String cmd = "img " + receiver + " " + Base64.getEncoder().encodeToString(b) + " " + caption + "\n";
+        String cmd = "img " + receiver + " " + base64Image + " " + caption + "\n";
         serverOut.write(cmd.getBytes());
         System.out.println("Sent to server");
-        //System.out.println(cmd);
+        // System.out.println(cmd);
 
     }
 
-    private void decodeString (String [] tokens) throws Exception{
+    //token format from server: [baseImage,caption]
+    private void decodeString(String[] tokens) throws Exception { // tokens format: ["img",reciever,caption base64Image] -- takes in the caption + baseimage as one 
         System.out.println("Recieving from server...");
-        FileOutputStream fis = new FileOutputStream("/Users/aneledlamini/Desktop/NIS/sunset.jpg"); // where the new file will be saved
-        try{
-            String file = new String(tokens[2]).replaceAll(" +", "+"); 
-            byte[] b = Base64.getMimeDecoder().decode(file.getBytes("UTF-8"));
-            System.out.println("Recieving from server...\n");
-            serverIn.read(b,0,b.length); //read bytes 
-            fis.write(b,0,b.length); // write bytes to new file
+        for(String t: tokens){
+            System.out.println(t);
+        }
+        FileOutputStream fos = new FileOutputStream("/Users/aneledlamini/Desktop/NIS/sunset2.jpg"); // where the new file
+                                                                                                   // will be saved
+        try {
+           // String captionFile = new String(tokens[2]).split(" "));
+            String file = new String(tokens[1]).replaceAll(" +", "+");
+            byte[] b = Base64.getDecoder().decode(file);
+            System.out.println("Recieving from server...");
+            // serverIn.read(b,0,b.length); //read bytes, i think it reads in what is sent
+            // after the above line e.g "hi" hence reads nothing into the file
+            fos.write(b); // write bytes to new file
             System.out.println("Received!");
-            System.out.println(tokens[1]);
-        }catch(Exception e){
+            System.out.println(tokens[0]);
+        } catch (Exception e) {
             e.printStackTrace();
         }
     }
-    
-    // Lulu encde string method --- this has been implemented with the encodeString method
-    /*private String encodeFileToBase64Binary(File file) {
-        String encodedfile = null;
-        try {
-            FileInputStream fileInputStreamReader = new FileInputStream(file);
-            byte[] bytes = new byte[(int) file.length()];
-            fileInputStreamReader.read(bytes);
-            encodedfile = Base64.getEncoder().encodeToString(bytes);
-            fileInputStreamReader.close();
-        } catch (FileNotFoundException e) {
-            // TODO Auto-generated catch block
-            e.printStackTrace();
-        } catch (IOException e) {
-            // TODO Auto-generated catch block
-            e.printStackTrace();
-        }
 
-        return encodedfile;
-    }*/
+    // Lulu encde string method --- this has been implemented with the encodeString
+    // method
+    /*
+     * private String encodeFileToBase64Binary(File file) { String encodedfile =
+     * null; try { FileInputStream fileInputStreamReader = new
+     * FileInputStream(file); byte[] bytes = new byte[(int) file.length()];
+     * fileInputStreamReader.read(bytes); encodedfile =
+     * Base64.getEncoder().encodeToString(bytes); fileInputStreamReader.close(); }
+     * catch (FileNotFoundException e) { // TODO Auto-generated catch block
+     * e.printStackTrace(); } catch (IOException e) { // TODO Auto-generated catch
+     * block e.printStackTrace(); }
+     * 
+     * return encodedfile; }
+     */
 
 }
 

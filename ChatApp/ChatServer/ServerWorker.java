@@ -107,19 +107,19 @@ public class ServerWorker extends Thread {
         /*
         try {
             System.out.println("We're In!");
-           // decodeString(tokens);
-          //  encodeString(tokens);
+            decodeString(tokens);
+            encodeString(tokens);
         } catch (Exception e) {
             // TODO Auto-generated catch block
             e.printStackTrace();
         }*/
     }
 
-    private void encodeString(String[] tokens) throws Exception {
+    private void encodeString(String[] tokens) throws Exception { // token format: 
         String caption = tokens[3];
-        FileInputStream fis = new FileInputStream("/Users/aneledlamini/Desktop/NIS/sunset.jpg");
+        FileInputStream fis = new FileInputStream("/Users/aneledlamini/Desktop/NIS/sunset1.jpg");
         System.out.println("Still sending to client...");
-        BufferedImage bImage = ImageIO.read(new File("/Users/aneledlamini/Desktop/NIS/sunset.jpg"));
+        BufferedImage bImage = ImageIO.read(new File("/Users/aneledlamini/Desktop/NIS/sunset1.jpg"));
         ByteArrayOutputStream bos = new ByteArrayOutputStream();
         ImageIO.write(bImage, "jpg", bos);
         System.out.println("Still sending to client...");
@@ -129,7 +129,7 @@ public class ServerWorker extends Thread {
         for(ServerWorker worker: workerList){
             if(!login.equals(worker.getLogin())){
                 try{
-                    String cmd = "img " + login + " " + Base64.getEncoder().encodeToString(b) + " " + caption + "\n";
+                    String cmd = "img " + login + " " + caption + " " + Base64.getEncoder().encodeToString(b) + "\n";
                     System.out.println("Still sending to client...");
                     worker.send(cmd);
                     System.out.println("Sent to worker...");
@@ -141,11 +141,24 @@ public class ServerWorker extends Thread {
         }
     }
 
-    // tokens = 4
+    // tokens format: [img,reciever,encodedImage,caption]
     private void decodeString (String [] tokens) throws Exception{
         System.out.println("Recieving from client...");
-        InputStream is = clientSocket.getInputStream();
-        FileOutputStream fos = new FileOutputStream("/Users/aneledlamini/Desktop/NIS/sunset.jpg"); // where the new file will be saved
+        FileOutputStream fos = new FileOutputStream("/Users/aneledlamini/Desktop/NIS/sunset1.jpg"); // where the new file will be saved
+        try {
+            // String captionFile = new String(tokens[2]).split(" "));
+             String file = new String(tokens[2]).replaceAll(" +", "+");
+             byte[] b = Base64.getDecoder().decode(file);
+             System.out.println("Recieving from client...");
+             // serverIn.read(b,0,b.length); //read bytes, i think it reads in what is sent
+             // after the above line e.g "hi" hence reads nothing into the file
+             fos.write(b); // write bytes to new file
+             System.out.println("Received!");
+            System.out.println(tokens[3]);
+         } catch (Exception e) {
+             e.printStackTrace();
+         }
+        /*
         try{
             byte[] b = Base64.getDecoder().decode(new String(tokens[2]).getBytes("UTF-8"));
             System.out.println("Recieving from client...");
@@ -157,7 +170,7 @@ public class ServerWorker extends Thread {
             System.out.println(tokens[3]);
         }catch(Exception e){
             e.printStackTrace();
-        }
+        }*/
     }
 
     //format msg login msg
