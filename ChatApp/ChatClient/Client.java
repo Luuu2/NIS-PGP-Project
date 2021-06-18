@@ -32,9 +32,9 @@ public class Client{
     private static final String BC_PROVIDER = "BC";
     private Socket socket;
     private Scanner scanner;
-    private final Certificate certificate;
-    private final Certificate rootCertificate;
-
+    private Certificate certificate;
+    private Certificate rootCertificate;
+    private PrivateKey privatetKey;
 
     public Client(String serverName, int serverPort, String userName, String password){
         this.serverName = serverName;
@@ -43,17 +43,10 @@ public class Client{
         this.password = password;
 
         try{       
-            FileInputStream certFile = new FileInputStream( new File ( 
-                userName.equalsIgnoreCase("Bob") ? "PGP-iBcert.cer" : "PGP-iAcert.cer" ) );
-            FileInputStream certRootFile = new FileInputStream( new File ( "PGP-rcert.cer" ) );
+            String certfile = userName.equalsIgnoreCase("Bob") ? "PGPiBcert.cer":"PGPiAcert.cer";
+            String ksfile = userName.equalsIgnoreCase("Bob") ? "PGPiBcertpfx":"PGPiAcert.pfx"; 
+            importKeyPairFromKeystoreFile(ksfile, certfile, "PKCS12");
 
-            CertificateFactory cf = CertificateFactory.getInstance("X.509");
-            
-            certificate = (X509Certificate)cf.generateCertificate(certFile);
-            rootCertificate = (X509Certificate)cf.generateCertificate(certRootFile);
-
-            certFile.close();
-            certRootFile.close();
         }catch( Exception e ){
             e.printStackTrace();
         }
@@ -71,6 +64,42 @@ public class Client{
         }
         else{
             System.out.println("Connect failed.");
+        }
+    }
+
+    private void importKeyPairFromKeystoreFile(String fileNameKS, String fileNameC, String storeType) throws Exception {
+        FileInputStream keyStoreOs;
+        FileInputStream certOs;
+        try{
+            keyStoreOs = new FileInputStream(fileNameKS);
+            certOs = new FileInputStream(fileNameC);
+
+            System.out.println(keyStoreOs);
+            System.out.println(certOs);
+            KeyStore sslKeyStore = KeyStore.getInstance(storeType, BC_PROVIDER);
+
+            char[] keyPassword = "pass".toCharArray();
+            sslKeyStore.load(keyStoreOs, keyPassword);
+            String alias = "PGP-icert";
+
+            KeyStore.ProtectionParameter entryPassword = new KeyStore.PasswordProtection(keyPassword);
+
+            KeyStore.PrivateKeyEntry privateKeyEntry = (KeyStore.PrivateKeyEntry)
+            sslKeyStore.getEntry(alias, entryPassword);
+
+            this.privatetKey = privateKeyEntry.getPrivateKey();
+            System.out.println("Private Key");
+            System.out.println(this.privatetKey );
+
+            // GET CERT
+            this.certificate = privateKeyEntry.getCertificate();
+            System.out.println("Certificate");
+            System.out.println(this.certificate);
+            //
+
+        } catch(Exception e){
+            System.out.println(e);
+            System.exit(0);
         }
     }
 
@@ -113,6 +142,7 @@ public class Client{
         }
     }
 
+    //should be verifying the other client's certificate not the server's 
     private void handleCertification() throws IOException, InterruptedException{
         System.out.println("Sending certificate to Server");
         InputStream input = this.serverIn;
@@ -172,7 +202,6 @@ public class Client{
         }
 
     }
-
 
     private void msgReader(){
         Thread t = new Thread(){
@@ -254,6 +283,30 @@ public class Client{
     }
 
 }
+
+// Assume that server is already authenticated and known to client 
+// From the sever we need to get the other client's certificate to verify customer as trustworthy
+// Thus certify othe client's certificate not server's certificate
+// Keep the CA server certificate as a trusted certificate. 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 /*public class Client {
     private final String serverName;

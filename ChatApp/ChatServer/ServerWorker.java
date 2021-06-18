@@ -8,7 +8,7 @@ import java.io.OutputStream;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
-//import org.apache.commons.lang3.StringUtils;
+
 
 
 public class ServerWorker extends Thread {
@@ -22,17 +22,19 @@ public class ServerWorker extends Thread {
         this.clientSocket = clientSocket;
     }
 
+    @Override
     public void run() {
         try{
-            HandleClient();
+            handleClient();
         } catch (IOException e){
             e.printStackTrace();
         } catch (InterruptedException e){
             e.printStackTrace();
+            Thread.currentThread().interrupt();
         }
     }
 
-    private void HandleClient() throws IOException, InterruptedException{
+    private void handleClient() throws IOException, InterruptedException{
         System.out.println("Server is still alive");
 
         InputStream input = clientSocket.getInputStream();
@@ -45,7 +47,7 @@ public class ServerWorker extends Thread {
         while((line=reader.readLine())!=null){
             String [] tokens = line.split(" ");
             String cmd = tokens[0];
-            if (tokens !=null && tokens.length>0){
+            if (tokens != null && tokens.length>0){
                 if("quit".equalsIgnoreCase(cmd) || "logoff".equalsIgnoreCase(cmd)){
                     handleLogoff();
                     break;
@@ -164,13 +166,5 @@ public class ServerWorker extends Thread {
         }
     }
 
-    /*private void handleMessage(String [] tokens) {
-        String sendTo = tokens [1];
-        String msg = tokens[2];
-
-        List <ServerWorker> workerList = server.getWorkerList();
-        for(ServerWorker worker: workerList){
-            //if sendTo.equalsIgnoreCase()
-        }
-    }*/
+    
 }
