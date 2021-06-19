@@ -1,5 +1,6 @@
 package ChatClient;
 
+import java.io.BufferedInputStream;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
@@ -19,6 +20,7 @@ import java.security.cert.CertificateException;
 import java.security.cert.CertificateEncodingException;
 import java.security.*;
 
+import org.bouncycastle.jcajce.provider.keystore.BC;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 
 public class Client{
@@ -34,7 +36,7 @@ public class Client{
     private Scanner scanner;
     private Certificate certificate;
     private Certificate rootCertificate;
-    private PrivateKey privatetKey;
+    private PrivateKey privateKey;
 
     public Client(String serverName, int serverPort, String userName, String password){
         this.serverName = serverName;
@@ -43,18 +45,21 @@ public class Client{
         this.password = password;
 
         try{       
-            String certfile = userName.equalsIgnoreCase("Bob") ? "PGPiBcert.cer":"PGPiAcert.cer";
-            String alias = userName.equalsIgnoreCase("Bob") ? "PGPiBcert.cer":"PGPiAcert.cer";
-            String ksfile = userName.equalsIgnoreCase("Bob") ? "PGPiBcertpfx":"PGPiAcert.pfx"; 
+            String certfile = userName.equalsIgnoreCase("Bob") ? "PGP-iBcert.cer":"PGP-iAcert.cer";
+            String alias = userName.equalsIgnoreCase("Bob") ? "PGP-iBcert":"PGP-iAcert";
+            String ksfile = userName.equalsIgnoreCase("Bob") ? "PGP-iBcert.pfx":"PGP-iAcert.pfx"; 
             importKeyPairFromKeystoreFile(ksfile, certfile, alias, "PKCS12");
 
         }catch( Exception e ){
+            System.out.print("Error Import");
             e.printStackTrace();
         }
     }
 
     public static void main(String[] args){
-        Client client = new Client("localhost", 8818, args[0], args[1]);
+        Security.addProvider(new BouncyCastleProvider());
+        //Client client = new Client("localhost", 8818, args[0], args[1]);
+        Client client = new Client("localhost", 8818, "Bob", "Bpass");
         if(client.connect()){
             System.out.println("Connect successful.");
             try {
@@ -68,7 +73,7 @@ public class Client{
         }
     }
 
-    private void importKeyPairFromKeystoreFile(String fileNameKS, String fileNameC, String aliasName, String storeType) throws Exception {
+    private void importKeyPairFromKeystoreFile(String fileNameKS, String fileNameC, String alias, String storeType) throws Exception {
         FileInputStream keyStoreOs;
         FileInputStream userCert;
         FileInputStream rootCert;
@@ -80,31 +85,51 @@ public class Client{
             System.out.println(keyStoreOs);
             System.out.println(userCert);
             KeyStore sslKeyStore = KeyStore.getInstance(storeType, BC_PROVIDER);
+            System.out.print("Keystore check: ");
+            System.out.println(sslKeyStore);
 
             char[] keyPassword = password.toCharArray();
             sslKeyStore.load(keyStoreOs, keyPassword);
-            String alias = aliasName;
+            System.out.print("Alias check: ");
+            System.out.println(alias);
 
             KeyStore.ProtectionParameter entryPassword = new KeyStore.PasswordProtection(keyPassword);
+            //System.out.print("Password check: ");
+            //System.out.println(entryPassword);
 
             KeyStore.PrivateKeyEntry privateKeyEntry = (KeyStore.PrivateKeyEntry)
             sslKeyStore.getEntry(alias, entryPassword);
-
-            this.privatetKey = privateKeyEntry.getPrivateKey();
-            System.out.println("Private Key");
-            System.out.println(this.privatetKey );
+            this.privateKey = privateKeyEntry.getPrivateKey();
 
             // GET CERT
-            CertificateFactory cf = CertificateFactory.getInstance("X.509");
+            CertificateFactory cf = CertificateFactory.getInstance("X.509", BC_PROVIDER);
+            System.out.println("\nCertification Factory Check");
+            System.out.println( cf );
             
-            certificate = (X509Certificate)cf.generateCertificate(userCert);
-            rootCertificate = (X509Certificate)cf.generateCertificate(rootCert);
+            System.out.println("Certification Check");
+            BufferedInputStream bisCert = new BufferedInputStream(userCert);
+            
+            while (bisCert.available() > 0) {
+                System.out.println("User Cert");
+                //System.out.println(bisCert);
+                Certificate certificate = cf.generateCertificate(bisCert);
+                System.out.println(certificate.toString());
+            }
+
+            System.out.println("Root Certification Check");
+            BufferedInputStream bisCertR = new BufferedInputStream(rootCert);
+            while (bisCertR.available() > 0) {
+                System.out.println("Root Cert");
+                //System.out.println(bisCertR);
+                Certificate rootCertificate = cf.generateCertificate(bisCertR);
+                System.out.println(rootCertificate.toString());
+            }
 
             userCert.close();
             rootCert.close();
         } catch(Exception e){
-            System.out.println(e);
-            System.exit(0);
+            System.out.println("Kubird!");
+            e.printStackTrace();
         }
     }
 
