@@ -38,11 +38,15 @@ public class ServerWorker extends Thread  {
     private SecretKey sharedKey;
     ObjectOutputStream objectOutputStream;
     private DataOutputStream dos;
+    private IvParameterSpec sharedIv;
     
 
-    public ServerWorker(Server server, Socket clientSocket) {
+    public ServerWorker(Server server, Socket clientSocket, SecretKey key, IvParameterSpec iv) {
         this.server = server;
         this.clientSocket = clientSocket;
+        this.sharedKey = key;
+        this.sharedIv = iv;
+
     }
 
     public void run() {
@@ -78,15 +82,15 @@ public class ServerWorker extends Thread  {
                     handleLogoff();
                     break;
                 } else if ("login".equalsIgnoreCase(cmd)) {
-
                     handleLogin(output, tokens);
-                    try {
-                        generateKey(login);
-                        generateIv(login);
+                    System.out.println(sharedKey);
+                    /*try {
+                        //generateKey(login);
+                        //generateIv(login);
                     } catch (NoSuchAlgorithmException e) {
                         // TODO Auto-generated catch block
                         e.printStackTrace();
-                    }
+                    }*/
                     
 
                 } else if ("msg".equalsIgnoreCase(cmd)) {
@@ -107,15 +111,17 @@ public class ServerWorker extends Thread  {
     public void generateKey(String name) throws NoSuchAlgorithmException { // 256 bit key for 14 rounds
         String sendTo = name; // reciever
 
-        KeyGenerator keyGenerator = KeyGenerator.getInstance("AES");
+        /*KeyGenerator keyGenerator = KeyGenerator.getInstance("AES");
         keyGenerator.init(256);
         sharedKey = keyGenerator.generateKey();
+        */
        // byte [] encoded = sharedKey.getEncoded();
         List<ServerWorker> workerList = server.getWorkerList();
         for (ServerWorker worker : workerList) {
             if (sendTo.equalsIgnoreCase(worker.getLogin())) {
                 try {
                     worker.sendKey(sharedKey);
+                    System.out.println(sharedKey);
                 } catch (IOException e) {
                     // TODO Auto-generated catch block
                     e.printStackTrace();
@@ -135,19 +141,19 @@ public class ServerWorker extends Thread  {
     public void generateIv(String name) { // IV vector should be the same for each client to decrypt/encrypt
         String sendTo = name; // reciever
 
-        byte[] iv = new byte[16];
-        new SecureRandom().nextBytes(iv);
+        //byte[] iv = new byte[16];
+        //new SecureRandom().nextBytes(iv);
        // ByteArrayOutputStream bos = new ByteArrayOutputStream();
 
         List<ServerWorker> workerList = server.getWorkerList();
         for (ServerWorker worker : workerList) {
             if (sendTo.equalsIgnoreCase(worker.getLogin())) {
                 try {
-                    IvParameterSpec Iv = new IvParameterSpec(iv);
+                    //IvParameterSpec Iv = new IvParameterSpec(iv);
                    // objectOutputStream.flush();
                     //objectOutputStream.reset();
                     //bos.write(Iv.getIV());
-                    output.write(Iv.getIV());
+                    output.write(sharedIv.getIV());
                    // objectOutputStream.writeObject(Iv);
                     
                 } catch (IOException e) {

@@ -96,6 +96,7 @@ public class Client {
         System.out.println("Response Line: " + response);
         if ("ok login".equalsIgnoreCase(response)) {
             this.key = getKey();
+            System.out.println("got key");
             this.iv = getIv();
             msgReader();
             msgWriter();
