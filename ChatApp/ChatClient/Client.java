@@ -112,7 +112,7 @@ public class Client{
             while (bisCert.available() > 0) {
                 System.out.println("User Cert");
                 //System.out.println(bisCert);
-                Certificate certificate = cf.generateCertificate(bisCert);
+                this.certificate = cf.generateCertificate(bisCert);
                 System.out.println(certificate.toString());
             }
 
@@ -121,7 +121,7 @@ public class Client{
             while (bisCertR.available() > 0) {
                 System.out.println("Root Cert");
                 //System.out.println(bisCertR);
-                Certificate rootCertificate = cf.generateCertificate(bisCertR);
+                this.rootCertificate = cf.generateCertificate(bisCertR);
                 System.out.println(rootCertificate.toString());
             }
 
@@ -182,10 +182,10 @@ public class Client{
         /**
          * Sending user the server X509 certificate 
         **/
-        System.out.println("Sending certificate to Client");
         // Convert CERT into byte[]
         byte[] certificateBytes = null;
         try{
+            System.out.println(certificate);
             certificateBytes = certificate.getEncoded();
         } catch( CertificateEncodingException e ){
             System.out.println("Certificate Encoding Exception error");

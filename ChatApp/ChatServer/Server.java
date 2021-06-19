@@ -10,6 +10,7 @@ import java.security.cert.CertificateException;
 import java.security.cert.CertificateEncodingException;
 import java.security.*;
 
+import java.io.BufferedInputStream;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.InputStreamReader;
@@ -31,15 +32,17 @@ public class Server {
     private static final String SIGNATURE_ALGORITHM = "SHA256withRSA";
     private Certificate certificate;
     private Certificate rootCertificate;
-    private PrivateKey privatetKey;
+    private PrivateKey privateKey;
     
 
     private void importKeyPairFromKeystoreFile(String fileNameKS, String fileNameC, String storeType) throws Exception {
         FileInputStream keyStoreOs;
         FileInputStream certOs;
+        FileInputStream rootCert;
         try{
             keyStoreOs = new FileInputStream(fileNameKS);
             certOs = new FileInputStream(fileNameC);
+            rootCert = new FileInputStream("PGP-rcert.cer");
 
             System.out.println(keyStoreOs);
             System.out.println(certOs);
@@ -54,9 +57,9 @@ public class Server {
             KeyStore.PrivateKeyEntry privateKeyEntry = (KeyStore.PrivateKeyEntry)
             sslKeyStore.getEntry(alias, entryPassword);
 
-            this.privatetKey = privateKeyEntry.getPrivateKey();
+            this.privateKey = privateKeyEntry.getPrivateKey();
             System.out.println("Private Key");
-            System.out.println(this.privatetKey );
+            System.out.println(this.privateKey);
 
             // GET CERT
             this.certificate = privateKeyEntry.getCertificate();
@@ -64,6 +67,15 @@ public class Server {
             System.out.println(this.certificate);
             //
 
+            CertificateFactory cf = CertificateFactory.getInstance("X.509", BC_PROVIDER);
+            System.out.println("Root Certification Check");
+            BufferedInputStream bisCertR = new BufferedInputStream(rootCert);
+            while (bisCertR.available() > 0) {
+                System.out.println("Root Cert");
+                //System.out.println(bisCertR);
+                this.rootCertificate = cf.generateCertificate(bisCertR);
+                System.out.println(rootCertificate);
+            }
         } catch(Exception e){
             System.out.println(e);
             System.exit(0);
@@ -138,24 +150,32 @@ public class Server {
 
             InputStream input = clientSocket.getInputStream();
             this.output = clientSocket.getOutputStream();
+            //userCert = new FileInputStream(fileNameC);
 
             CertificateFactory certFactory = null;                        
             Certificate cert = null; // client certificate
             
             // to construct Certificate from client bytestream
             try{
-                certFactory = CertificateFactory.getInstance("X.509");                        
-                cert = certFactory.generateCertificate(input);
+                BufferedInputStream bis = new BufferedInputStream(input);
+                System.out.print("Check Certificate: ");
+                System.out.println(cert);
+                certFactory = CertificateFactory.getInstance("X.509");
+                
+                
+                cert = certFactory.generateCertificate(bis);
+                System.out.println(cert);
                 System.out.println("X.509 Certificate Constructed");
             }catch( CertificateException e ){
                 System.out.println("X.509 Certificate Not Constructed");
                 e.printStackTrace();
-            } 
+            }            
 
             /**
              * Verifying user the X509 certificate 
             **/
             try {
+                System.out.println("Verification of User Certificate");
                 cert.verify(rootCertificate.getPublicKey(), Security.getProvider(BC_PROVIDER)); 
             } catch (CertificateException | NoSuchAlgorithmException | InvalidKeyException e) {
                 //handle wrong algos
@@ -267,7 +287,7 @@ public class Server {
                 ///output.write(msg.getBytes());
                 ///
     
-                if (login.equals("Alice") && password.equals("Alice") || login.equals("Bob") && password.equals("Bob")){
+                if (login.equals("Alice") && password.equals("Apass") || login.equals("Bob") && password.equals("Bpass")){
                     String msg = "ok login\n";
                     output.write(msg.getBytes());
                     this.login = login;
