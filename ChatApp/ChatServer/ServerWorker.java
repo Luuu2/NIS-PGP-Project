@@ -84,6 +84,7 @@ public class ServerWorker extends Thread  {
                 } else if ("login".equalsIgnoreCase(cmd)) {
                     handleLogin(output, tokens);
                     System.out.println(sharedKey);
+                    System.out.println(sharedIv);
                     /*try {
                         //generateKey(login);
                         //generateIv(login);
@@ -191,9 +192,9 @@ public class ServerWorker extends Thread  {
 
     private void encodeString(String[] tokens) throws Exception { // token format:
         String caption = tokens[3];
-        FileInputStream fis = new FileInputStream("/Users/aneledlamini/Desktop/NIS/sunset1.jpg");
+        FileInputStream fis = new FileInputStream("///home/d/dlmsil008/Desktop/NIS/sunset.jpg");
         System.out.println("Still sending to client...");
-        BufferedImage bImage = ImageIO.read(new File("/Users/aneledlamini/Desktop/NIS/sunset1.jpg"));
+        BufferedImage bImage = ImageIO.read(new File("///home/d/dlmsil008/Desktop/NIS/sunset.jpg"));
         ByteArrayOutputStream bos = new ByteArrayOutputStream();
         ImageIO.write(bImage, "jpg", bos);
         System.out.println("Still sending to client...");

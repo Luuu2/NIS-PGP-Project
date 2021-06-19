@@ -1,6 +1,12 @@
 package ChatServer;
 
+import java.io.BufferedOutputStream;
+import java.io.DataOutputStream;
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.ObjectOutputStream;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.security.NoSuchAlgorithmException;
@@ -18,13 +24,12 @@ public class Server {
     private ArrayList<ServerWorker> workerList = new ArrayList<>();
     private SecretKey sharedKey;
     private IvParameterSpec sharedIv;
-    
 
     public static void main(String[] args) throws NoSuchAlgorithmException {
         int port = 8818;
         Server server = new Server(port);
         server.run();
-        
+
     }
 
     public Server(int serverPort) {
@@ -38,6 +43,24 @@ public class Server {
     public void run() throws NoSuchAlgorithmException {
         generateKey();
         generateIv();
+        ObjectOutputStream oos;
+        FileOutputStream fos;
+        try {
+            oos = new ObjectOutputStream(new FileOutputStream("Key.txt"));
+            oos.writeObject(sharedKey);
+            oos.close();
+            fos = new FileOutputStream(new File("IV.txt"));
+            BufferedOutputStream bos = new BufferedOutputStream(fos);
+            bos.write(sharedIv.getIV());
+            bos.close();
+        } catch (FileNotFoundException e1) {
+            // TODO Auto-generated catch block
+            e1.printStackTrace();
+        } catch (IOException e1) {
+            // TODO Auto-generated catch block
+            e1.printStackTrace();
+        }
+        
         try (ServerSocket serverSocket = new ServerSocket(serverPort)) {
             while (true) {
                 System.out.println("Server is alive");

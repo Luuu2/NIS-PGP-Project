@@ -56,13 +56,14 @@ public class Client {
         this.password = password;
     }
 
-    public static void main(String[] args) {
+    public static void main(String[] args) throws ClassNotFoundException {
         Client client = new Client("localhost", 8818, args[0], args[1]);
         if (client.connect()) {
             System.out.println("Connect successful.");
             try {
                 client.login();
             } catch (IOException e) {
+                e.printStackTrace();
                 System.out.println("Error logging in");
             }
         } else {
@@ -89,15 +90,19 @@ public class Client {
         return false;
     }
 
-    private boolean login() throws IOException {
+    private boolean login() throws IOException, ClassNotFoundException {
         String cmd = "login " + userName + " " + password + "\n";
         serverOut.write(cmd.getBytes());
         String response = bufferIn.readLine();
         System.out.println("Response Line: " + response);
         if ("ok login".equalsIgnoreCase(response)) {
-            this.key = getKey();
+            getKey();
+            //this.key = getKey();
             System.out.println("got key");
-            this.iv = getIv();
+            System.out.println(key);
+            getIv();
+            System.out.println("got iv");
+            System.out.println(iv);
             msgReader();
             msgWriter();
             return true;
@@ -193,30 +198,25 @@ public class Client {
         t.start();
     }
 
-    private SecretKey getKey(){
-        try {
-
+    private void getKey() throws ClassNotFoundException, IOException {
+       
+            ois = new ObjectInputStream(new FileInputStream("../ChatServer/Key.txt"));
+            key = (SecretKey) ois.readObject();
+            ois.close();
             //byte [] encoded
-            key = new SecretKeySpec(dis.readAllBytes(), "AES");
+            //key = new SecretKeySpec(dis.readAllBytes(), "AES");
             //key = (SecretKey) ois.readObject();
 
-        } catch (IOException e) {
-            // TODO Auto-generated catch block
-            e.printStackTrace();
-        }
-        return key;
+       
+        //return key;
     }
 
-    private IvParameterSpec getIv(){
-        byte [] b = null;
-        try {
-           b  = serverIn.readAllBytes();
-           IvParameterSpec iv = new IvParameterSpec(b);
-        } catch (IOException e) {
-            // TODO Auto-generated catch block
-            e.printStackTrace();
-        }
-        return iv;
+    private void getIv() throws FileNotFoundException, IOException, ClassNotFoundException {
+        byte [] b = new byte[16];
+        dis = new DataInputStream(new FileInputStream(new File("../ChatServer/IV.txt")));
+        dis.readFully(b);
+        iv= new IvParameterSpec(b);
+        dis.close();
     }
 
     private String encodeString(String[] tokens, String receiver) throws Exception { // tokens format: [img,caption,file]
@@ -249,7 +249,7 @@ public class Client {
     private void decodeString(String[] tokens) throws Exception { // tokens format: ["img",reciever,caption base64Image]
                                                                   // -- takes in the caption + baseimage as one
         System.out.println("Recieving from server...");
-        FileOutputStream fos = new FileOutputStream("/Users/aneledlamini/Desktop/NIS/sunset2.jpg"); // where the new
+        FileOutputStream fos = new FileOutputStream("///home/d/dlmsil008/Desktop/NIS/sunset.jpg"); // where the new
                                                                                                     // file
                                                                                                     // will be saved
         try {
