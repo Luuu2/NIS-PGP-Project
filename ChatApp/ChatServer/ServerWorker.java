@@ -20,6 +20,7 @@ import java.io.OutputStream;
 import java.awt.image.BufferedImage;
 import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
+import java.io.DataOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
@@ -36,6 +37,7 @@ public class ServerWorker extends Thread  {
     private InputStream input;
     private SecretKey sharedKey;
     ObjectOutputStream objectOutputStream;
+    private DataOutputStream dos;
     
 
     public ServerWorker(Server server, Socket clientSocket) {
@@ -60,6 +62,7 @@ public class ServerWorker extends Thread  {
         this.input = clientSocket.getInputStream();
         this.output = clientSocket.getOutputStream();
         this.objectOutputStream = new ObjectOutputStream(clientSocket.getOutputStream());
+        this.dos = new DataOutputStream(output);
 
         BufferedReader reader = new BufferedReader(new InputStreamReader(input));
 
@@ -107,6 +110,7 @@ public class ServerWorker extends Thread  {
         KeyGenerator keyGenerator = KeyGenerator.getInstance("AES");
         keyGenerator.init(256);
         sharedKey = keyGenerator.generateKey();
+       // byte [] encoded = sharedKey.getEncoded();
         List<ServerWorker> workerList = server.getWorkerList();
         for (ServerWorker worker : workerList) {
             if (sendTo.equalsIgnoreCase(worker.getLogin())) {
@@ -122,7 +126,8 @@ public class ServerWorker extends Thread  {
 
     private void sendKey(SecretKey key) throws IOException {
         if (login != null) {
-            objectOutputStream.writeObject(key);
+            dos.write(key.getEncoded());
+           // objectOutputStream.writeObject(key);
             
         }
     }

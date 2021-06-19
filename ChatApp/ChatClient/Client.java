@@ -4,6 +4,7 @@ import java.awt.image.BufferedImage;
 import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.DataInputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
@@ -29,6 +30,7 @@ import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.NoSuchPaddingException;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.IvParameterSpec;
+import javax.crypto.spec.SecretKeySpec;
 import javax.imageio.ImageIO;
 
 public class Client {
@@ -41,6 +43,7 @@ public class Client {
     private final String password;
     private Socket socket;
     private Scanner scanner;
+    private DataInputStream dis;
     private ObjectInputStream ois;
     private byte [] cipher;
     private SecretKey key;
@@ -73,6 +76,7 @@ public class Client {
             System.out.println("Connected to server");
             this.serverOut = socket.getOutputStream();
             this.serverIn = socket.getInputStream();
+            this.dis = new DataInputStream(serverIn);
             this.ois = new ObjectInputStream(socket.getInputStream());
             this.bufferIn = new BufferedReader(new InputStreamReader(serverIn));
             this.scanner = new Scanner(System.in);
@@ -190,11 +194,11 @@ public class Client {
 
     private SecretKey getKey(){
         try {
-            key = (SecretKey) ois.readObject();
 
-        } catch (ClassNotFoundException e) {
-            // TODO Auto-generated catch block
-            e.printStackTrace();
+            //byte [] encoded
+            key = new SecretKeySpec(dis.readAllBytes(), "AES");
+            //key = (SecretKey) ois.readObject();
+
         } catch (IOException e) {
             // TODO Auto-generated catch block
             e.printStackTrace();
