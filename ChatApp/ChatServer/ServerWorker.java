@@ -73,7 +73,7 @@ public class ServerWorker extends Thread  {
         String line;
 
         while ((line = reader.readLine()) != null) {
-            String[] tokens = line.split(" ");
+            String[] tokens = line.split(" ",3);
             String cmd = tokens[0];
             System.out.println("In handle client...");
             if (tokens != null && tokens.length > 0) {
@@ -98,7 +98,7 @@ public class ServerWorker extends Thread  {
                     String[] msgTokens = line.split(" ", 3);
                     handleMessage(msgTokens);
                 } else if ("img".equalsIgnoreCase(cmd)) {
-                    String[] imgTokens = line.split(" ", 4);
+                    String[] imgTokens = line.split(" ", 3);
                     handleImage(imgTokens);
                 } else {
                     String msg = "Unknown " + cmd + "\n";
@@ -168,13 +168,12 @@ public class ServerWorker extends Thread  {
 
     private void handleImage(String[] tokens) {
         String sendTo = tokens[1];
-        String file = tokens[3];
-        String caption = tokens[2];
+        String cipher = tokens[2];
 
         List<ServerWorker> workerList = server.getWorkerList();
         for (ServerWorker worker : workerList) {
             if (sendTo.equalsIgnoreCase(worker.getLogin())) {
-                String outMsg = "img " + login + " " + file + " " + caption + "\n";
+                String outMsg = "img " + login + " " + cipher + "\n";
                 try {
                     worker.send(outMsg);
                 } catch (IOException e) {

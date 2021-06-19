@@ -45,9 +45,11 @@ public class Client {
     private Scanner scanner;
     private DataInputStream dis;
     private ObjectInputStream ois;
-    private byte [] cipher;
+    private String cipher;
     private SecretKey key;
     private IvParameterSpec iv;
+    String receiver;
+    String sender;
 
     public Client(String serverName, int serverPort, String userName, String password) {
         this.serverName = serverName;
@@ -118,7 +120,6 @@ public class Client {
                     try {
                         String response = bufferIn.readLine();
                         String[] tokens = response.split(" ", 3);
-                        String sender;
                         // tokens[0] == msg keyword for server, tokens[2] == message body
                         if (userName.equalsIgnoreCase("Alice")) {
                             sender = "Bob";
@@ -137,7 +138,11 @@ public class Client {
                             try {
                                 // System.out.println("");
                                 //String captionFile = new String(tokens[2]); // "caption space base64Image"
-                                System.out.println(decrypt("AES/CBC/PKCS5Padding", cipher, key, iv));
+                                String ci = tokens[2];
+                                //cipher = ci.getBytes();
+                                String plainText = decrypt("AES/CBC/PKCS5Padding", cipher, key, iv);
+                                String [] imgCap = plainText.split(" ",2);
+                                decodeString(imgCap);
                                // decodeString(captionFile.split(" ")); // new list format: [caption, base64Image]
                             } catch (Exception e) {
                                 e.printStackTrace();
@@ -157,7 +162,6 @@ public class Client {
     }
 
     private void msgWriter() {
-        String receiver;
         if (userName.equalsIgnoreCase("Alice")) {
             receiver = "Bob";
         } else {
@@ -180,6 +184,8 @@ public class Client {
                     } else if (tokens[0].equalsIgnoreCase("img")) {
                         try {
                             cipher = encrypt("AES/CBC/PKCS5Padding", encodeString(tokens, receiver), key, iv);
+                            String cmd = "img" + receiver + " " + cipher + "\n";
+                            serverOut.write(cmd.getBytes());
 
                         } catch (Exception e) {
                             e.printStackTrace();
@@ -261,30 +267,30 @@ public class Client {
             // after the above line e.g "hi" hence reads nothing into the file
             fos.write(b); // write bytes to new file
             System.out.println("Received!");
-            System.out.println(tokens[0]);
+            System.out.println(sender +"sent an image with the caption "+tokens[0]);
         } catch (Exception e) {
             e.printStackTrace();
         }
     }
 
     // encryting Base64 + caption String
-    public static byte[] encrypt(String algorithm, String input, SecretKey key, IvParameterSpec iv)
+    public static String encrypt(String algorithm, String input, SecretKey key, IvParameterSpec iv)
             throws NoSuchPaddingException, NoSuchAlgorithmException, InvalidAlgorithmParameterException,
             InvalidKeyException, BadPaddingException, IllegalBlockSizeException {
         Cipher cipher = Cipher.getInstance(algorithm);
         cipher.init(Cipher.ENCRYPT_MODE, key, iv);
         byte[] cipherText = cipher.doFinal(input.getBytes());
-        return cipherText;
+        return Base64.getEncoder().encodeToString(cipherText);
     }
 
     // dencryting Base64 + caption String
-    public static String decrypt(String algorithm, byte[] cipherText, SecretKey key, IvParameterSpec iv)
+    public static String decrypt(String algorithm, String cipherText, SecretKey key, IvParameterSpec iv)
             throws NoSuchPaddingException, NoSuchAlgorithmException, InvalidAlgorithmParameterException,
             InvalidKeyException, BadPaddingException, IllegalBlockSizeException {
 
         Cipher cipher = Cipher.getInstance(algorithm);
         cipher.init(Cipher.DECRYPT_MODE, key, iv);
-        byte[] plainText = cipher.doFinal(cipherText);
+        byte[] plainText = cipher.doFinal(Base64.getDecoder().decode(cipherText));
         return new String(plainText);
     }
 
