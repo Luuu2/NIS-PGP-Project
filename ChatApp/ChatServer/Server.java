@@ -1,17 +1,22 @@
 package ChatServer;
+
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
-
+import java.util.Scanner;
 import java.security.cert.Certificate;
 import java.security.cert.CertificateFactory;
+import javax.security.auth.x500.X500Principal;
+import java.security.cert.X509Certificate;
 import java.security.cert.CertificateException;
 import java.security.cert.CertificateEncodingException;
 import java.security.*;
 
 import java.io.BufferedInputStream;
 import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
@@ -20,6 +25,7 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.File;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
@@ -27,6 +33,7 @@ import org.bouncycastle.jce.provider.BouncyCastleProvider;
 public class Server {
     private final int serverPort;
     private ArrayList<ServerWorker> workerList = new ArrayList<>();
+    private ArrayList<UserClient> userList = new ArrayList<>();
     private static final String BC_PROVIDER = "BC";
     private static final String KEY_ALGORITHM = "RSA";
     private static final String SIGNATURE_ALGORITHM = "SHA256withRSA";
@@ -107,7 +114,8 @@ public class Server {
             while(true){
                 System.out.println("Server is alive");
                 Socket clientSocket = serverSocket.accept();
-                ServerWorker worker = new ServerWorker( this, clientSocket);
+                ServerWorker worker = new ServerWorker(this, clientSocket);
+                //ServerWorker worker = new ServerWorker(this, clientSocket);
                 workerList.add(worker);
                 worker.start();
                 System.out.println("New ServerWorker Thread created");
@@ -121,7 +129,6 @@ public class Server {
 
     public void removeWorker(ServerWorker serverWorker) {
         workerList.remove(serverWorker);
-        int i = 0;
     }
 
     private class ServerWorker extends Thread {
@@ -145,7 +152,7 @@ public class Server {
             }
         }
 
-        private void handleCertification() throws IOException, InterruptedException{
+        private Certificate handleCertification() throws IOException, InterruptedException{
             System.out.println("Accepting certificate from Client");
 
             InputStream input = clientSocket.getInputStream();
@@ -158,19 +165,17 @@ public class Server {
             // to construct Certificate from client bytestream
             try{
                 BufferedInputStream bis = new BufferedInputStream(input);
-                System.out.print("Check Certificate: ");
+                System.out.print("Check User (A/B) Certificate: ");
                 System.out.println(cert);
                 certFactory = CertificateFactory.getInstance("X.509");
                 
-                
-                cert = certFactory.generateCertificate(bis);
+                cert = (X509Certificate)certFactory.generateCertificate(bis);
                 System.out.println(cert);
                 System.out.println("X.509 Certificate Constructed");
             }catch( CertificateException e ){
                 System.out.println("X.509 Certificate Not Constructed");
                 e.printStackTrace();
-            }            
-
+            }
             /**
              * Verifying user the X509 certificate 
             **/
@@ -179,16 +184,18 @@ public class Server {
                 cert.verify(rootCertificate.getPublicKey(), Security.getProvider(BC_PROVIDER)); 
             } catch (CertificateException | NoSuchAlgorithmException | InvalidKeyException e) {
                 //handle wrong algos
-                System.out.print("handle wrong algorithms");
+                System.out.print("Handle wrong algorithms");
             } catch (SignatureException ex) {
                 //signature validation error
-                System.out.print("signature validation error");
+                System.out.print("Signature validation error");
+                clientSocket.close();
+                return null;
             }
+            ////////////////////handleLogin//////////////////
             //////////////////////////////////////
-            //////////////////////////////////////
-            /**
-             * Sending user the server X509 certificate 
-            **/
+            // 
+            //  Sending user the server X509 certificate 
+            // /
             System.out.println("Sending certificate to Client");
             // Convert CERT into byte[]
             byte[] certificateBytes = null;
@@ -209,6 +216,8 @@ public class Server {
                 output.write( certificateBytes );
             }
 
+            return cert;
+
         }
     
         private void HandleClient() throws IOException, InterruptedException{
@@ -217,7 +226,7 @@ public class Server {
             InputStream input = clientSocket.getInputStream();
             this.output = clientSocket.getOutputStream();
             // Certificaition Step
-            handleCertification();
+            Certificate cert = handleCertification();
             // Certificaition Step
     
             BufferedReader reader = new BufferedReader(new InputStreamReader(input));
@@ -232,7 +241,7 @@ public class Server {
                         handleLogoff();
                         break;
                     }else if("login".equalsIgnoreCase(cmd)){
-                        handleLogin(output, tokens);
+                        handleLogin(output, tokens, cert);
                     }
                     else if ("msg".equalsIgnoreCase(cmd)){
                         String[] msgTokens = line.split(" ", 3);
@@ -278,16 +287,13 @@ public class Server {
             return login;
         }
     
-        private void handleLogin(OutputStream output, String[] tokens) throws IOException {
+        private void handleLogin(OutputStream output, String[] tokens, Certificate certificate) throws IOException {
             if(tokens.length == 3){
                 String login = tokens[1];
                 String password = tokens[2];
-
-                /// Verify User via Cert 
-                ///output.write(msg.getBytes());
-                ///
-    
-                if (login.equals("Alice") && password.equals("Apass") || login.equals("Bob") && password.equals("Bpass")){
+                
+                UserClient user = new UserClient(login, password, certificate);
+                if (user.checkSHA()&& certificate!=null){
                     String msg = "ok login\n";
                     output.write(msg.getBytes());
                     this.login = login;
@@ -295,6 +301,7 @@ public class Server {
                     
                     String onlineMsg = "online "+login +"\n";
                     List<ServerWorker> workerList = server.getWorkerList();
+                    server.userList.add(user);
     
                     //send current user all other online logins
                     for(ServerWorker worker: workerList){
@@ -330,16 +337,60 @@ public class Server {
         private void send(byte[] bytes) throws IOException {
             output.write(bytes);
         }
-    
-        /*private void handleMessage(String [] tokens) {
-            String sendTo = tokens [1];
-            String msg = tokens[2];
-    
-            List <ServerWorker> workerList = server.getWorkerList();
-            for(ServerWorker worker: workerList){
-                //if sendTo.equalsIgnoreCase()
-            }
-        }*/
     }
+
+
+    public class UserClient{
+        private static final String BC_PROVIDER = "BC";
+        private final Certificate certificate;
+        private final String userName;
+        private final byte[] SHAedPW;
     
+        public UserClient(String userName, String password, Certificate certificate){
+            this.certificate = certificate;
+            this.userName = userName;
+            this.SHAedPW = generateSHA(userName, password);
+        }
+    
+        private byte[] generateSHA(String user, String pw){
+            Security.addProvider(new BouncyCastleProvider());
+            byte[] hPassword = new byte[0];
+            try{
+                MessageDigest md = MessageDigest.getInstance("SHA-256", BC_PROVIDER);
+                md.update(md.digest( (user + " " + pw).getBytes(StandardCharsets.UTF_8) ));
+                hPassword = md.digest( pw.getBytes(StandardCharsets.UTF_8) );
+            }catch(Exception e){
+                e.printStackTrace();
+            }
+            return hPassword;
+        }
+    
+        public boolean checkSHA() throws FileNotFoundException{
+            File sct = new File("ServerCoolTings.txt");
+            Scanner scan = new Scanner(sct);
+            while(scan.hasNextLine()){
+                String line = scan.nextLine().replace("\n", "");
+                if(line.startsWith(this.userName)){
+                    String shaValue = line.split(":")[1];
+                    String stringSHAedPW = Arrays.toString( SHAedPW ).replace(" ", "").replace("]", "").replace("[", "");
+                    scan.close();
+                    return shaValue.equals(stringSHAedPW);
+                }
+    
+            }
+            scan.close();
+            return false;
+    
+        }
+        
+        //public static void main(String args[]){
+        //    String u = args[0];
+        //    String p = args[1];
+        //    UserClient uc = new UserClient(u, p, null);
+        //    try{
+        //        System.out.println(uc.checkSHA());
+        //    } catch(Exception e ){}
+        //}           
+    }
+
 }
