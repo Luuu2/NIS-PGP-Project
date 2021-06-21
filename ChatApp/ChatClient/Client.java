@@ -236,7 +236,7 @@ public class Client {
     private String encodeString(String[] tokens, String receiver) throws Exception { // tokens format: [img,caption,file]
         String caption = tokens[1];
         //System.out.println(caption);
-        File f = new File("C:/Users/Lulu/Pictures/cup.jpg"); // file to be taken in (image path)
+        File f = new File("/home/kunta-kinte/Pictures/LovGrover.jpeg"); // file to be taken in (image path)
         FileInputStream fis = new FileInputStream(f); // taking in file
         System.out.println("Still sending to server....");
         byte imageData[] = new byte[(int) f.length()];
@@ -264,7 +264,7 @@ public class Client {
     private void decodeString(String[] tokens) throws Exception { // tokens format: ["img",reciever,caption base64Image]
                                                                   // -- takes in the caption + baseimage as one
         System.out.println("Recieving from server...");
-        FileOutputStream fos = new FileOutputStream("C:/Users/Lulu/Desktop/cup.jpg"); // where the new
+        FileOutputStream fos = new FileOutputStream("/home/kunta-kinte/Desktop/LovGrover.jpeg"); // where the new
                                                                                                     // file
                                                                                                     // will be saved
         try {
