@@ -22,6 +22,8 @@ import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Base64;
+import static java.nio.charset.StandardCharsets.UTF_8;
+import java.util.Base64.Decoder;
 import java.util.Scanner;
 
 import javax.crypto.BadPaddingException;
@@ -138,9 +140,11 @@ public class Client {
                             try {
                                 // System.out.println("");
                                 //String captionFile = new String(tokens[2]); // "caption space base64Image"
-                                String ci = tokens[2];
+                                
+                                String [] div =tokens[2].split(" ", 2);
+                                //System.out.println(div[1]);
                                 //cipher = ci.getBytes();
-                                String plainText = decrypt("AES/CBC/PKCS5Padding", cipher, key, iv);
+                                String plainText = decrypt("AES/CBC/PKCS5Padding", div[0] , key, iv);
                                 String [] imgCap = plainText.split(" ",2);
                                 decodeString(imgCap);
                                // decodeString(captionFile.split(" ")); // new list format: [caption, base64Image]
@@ -184,8 +188,11 @@ public class Client {
                     } else if (tokens[0].equalsIgnoreCase("img")) {
                         try {
                             cipher = encrypt("AES/CBC/PKCS5Padding", encodeString(tokens, receiver), key, iv);
-                            String cmd = "img" + receiver + " " + cipher + "\n";
+                            System.out.println(cipher);
+                            String cmd = "img" +" "+ receiver + " " + cipher + "\n";
+                            System.out.println("writing to server");
                             serverOut.write(cmd.getBytes());
+                            System.out.println("wrote to server");
 
                         } catch (Exception e) {
                             e.printStackTrace();
@@ -193,6 +200,7 @@ public class Client {
                     } else {
                         String cmd = "msg " + receiver + " " + message + "\n";
                         try {
+                            System.out.println ("somehow we are here");
                             serverOut.write(cmd.getBytes());
                         } catch (IOException e) {
                             e.printStackTrace();
@@ -227,7 +235,8 @@ public class Client {
 
     private String encodeString(String[] tokens, String receiver) throws Exception { // tokens format: [img,caption,file]
         String caption = tokens[1];
-        File f = new File(tokens[2]); // file to be taken in (image path)
+        //System.out.println(caption);
+        File f = new File("C:/Users/Lulu/Pictures/cup.jpg"); // file to be taken in (image path)
         FileInputStream fis = new FileInputStream(f); // taking in file
         System.out.println("Still sending to server....");
         byte imageData[] = new byte[(int) f.length()];
@@ -239,13 +248,13 @@ public class Client {
          * ImageIO.write(bImage, "jpg", bos); byte[] b = bos.toByteArray(); fis.read(b,
          * 0, b.length); // reading all bytes of file
          */
-        System.out.println("Still sending to server....");
+        //System.out.println("Still sending to server....");
         // String cmd = "img " + receiver + " " + Base64.getEncoder().encodeToString(b)
         // + " " + caption + "\n";
         String cmd = "img " + receiver + " " + base64Image + " " + caption + "\n";
         String encodedImgCap = base64Image + " " + caption;
-        serverOut.write(cmd.getBytes());
-        System.out.println("Sent to server");
+        //serverOut.write(cmd.getBytes());
+        //System.out.println("Sent to server");
         return encodedImgCap;
         // System.out.println(cmd);
 
@@ -255,19 +264,19 @@ public class Client {
     private void decodeString(String[] tokens) throws Exception { // tokens format: ["img",reciever,caption base64Image]
                                                                   // -- takes in the caption + baseimage as one
         System.out.println("Recieving from server...");
-        FileOutputStream fos = new FileOutputStream("///home/d/dlmsil008/Desktop/NIS/sunset.jpg"); // where the new
+        FileOutputStream fos = new FileOutputStream("C:/Users/Lulu/Desktop/cup.jpg"); // where the new
                                                                                                     // file
                                                                                                     // will be saved
         try {
             // String captionFile = new String(tokens[2]).split(" "));
-            String file = new String(tokens[1]).replaceAll(" +", "+");
+            String file = new String(tokens[0]).replaceAll(" +", "+");
             byte[] b = Base64.getDecoder().decode(file);
             System.out.println("Recieving from server...");
             // serverIn.read(b,0,b.length); //read bytes, i think it reads in what is sent
             // after the above line e.g "hi" hence reads nothing into the file
             fos.write(b); // write bytes to new file
             System.out.println("Received!");
-            System.out.println(sender +"sent an image with the caption "+tokens[0]);
+            System.out.println(sender +" " +"sent an image with the caption "+tokens[1]);
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -279,18 +288,23 @@ public class Client {
             InvalidKeyException, BadPaddingException, IllegalBlockSizeException {
         Cipher cipher = Cipher.getInstance(algorithm);
         cipher.init(Cipher.ENCRYPT_MODE, key, iv);
-        byte[] cipherText = cipher.doFinal(input.getBytes());
+        byte[] cipherText = cipher.doFinal(input.getBytes(UTF_8));
         return Base64.getEncoder().encodeToString(cipherText);
     }
 
-    // dencryting Base64 + caption String
+    // decrypting Base64 + caption String
     public static String decrypt(String algorithm, String cipherText, SecretKey key, IvParameterSpec iv)
             throws NoSuchPaddingException, NoSuchAlgorithmException, InvalidAlgorithmParameterException,
             InvalidKeyException, BadPaddingException, IllegalBlockSizeException {
 
         Cipher cipher = Cipher.getInstance(algorithm);
         cipher.init(Cipher.DECRYPT_MODE, key, iv);
-        byte[] plainText = cipher.doFinal(Base64.getDecoder().decode(cipherText));
+
+        Decoder decoder = Base64.getMimeDecoder();
+        byte[] bytes = decoder.decode(cipherText.getBytes(UTF_8));
+        String decodedString = new String(bytes, UTF_8);
+        byte [] input = decodedString.getBytes(UTF_8);
+        byte[] plainText = cipher.doFinal(bytes);
         return new String(plainText);
     }
 

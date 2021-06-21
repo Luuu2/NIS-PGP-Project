@@ -76,6 +76,7 @@ public class ServerWorker extends Thread  {
             String[] tokens = line.split(" ",3);
             String cmd = tokens[0];
             System.out.println("In handle client...");
+            System.out.println(cmd);
             if (tokens != null && tokens.length > 0) {
                 System.out.println("Looking at tokens...");
                 if ("quit".equalsIgnoreCase(cmd) || "logoff".equalsIgnoreCase(cmd)) {
@@ -98,8 +99,8 @@ public class ServerWorker extends Thread  {
                     String[] msgTokens = line.split(" ", 3);
                     handleMessage(msgTokens);
                 } else if ("img".equalsIgnoreCase(cmd)) {
-                    String[] imgTokens = line.split(" ", 3);
-                    handleImage(imgTokens);
+                    //String[] imgTokens = line.split(" ", 3);
+                    handleImage(tokens);
                 } else {
                     String msg = "Unknown " + cmd + "\n";
                     output.write(msg.getBytes());
@@ -169,7 +170,9 @@ public class ServerWorker extends Thread  {
     private void handleImage(String[] tokens) {
         String sendTo = tokens[1];
         String cipher = tokens[2];
-
+        System.out.println("handling image");
+        System.out.println(sendTo);
+        System.out.println(cipher);
         List<ServerWorker> workerList = server.getWorkerList();
         for (ServerWorker worker : workerList) {
             if (sendTo.equalsIgnoreCase(worker.getLogin())) {
@@ -191,9 +194,9 @@ public class ServerWorker extends Thread  {
 
     private void encodeString(String[] tokens) throws Exception { // token format:
         String caption = tokens[3];
-        FileInputStream fis = new FileInputStream("///home/d/dlmsil008/Desktop/NIS/sunset.jpg");
+        FileInputStream fis = new FileInputStream("C:/Users/Lulu/Pictures/cup.jpg");
         System.out.println("Still sending to client...");
-        BufferedImage bImage = ImageIO.read(new File("///home/d/dlmsil008/Desktop/NIS/sunset.jpg"));
+        BufferedImage bImage = ImageIO.read(new File("C:/Users/Lulu/Pictures/cup.jpg"));
         ByteArrayOutputStream bos = new ByteArrayOutputStream();
         ImageIO.write(bImage, "jpg", bos);
         System.out.println("Still sending to client...");
@@ -217,7 +220,7 @@ public class ServerWorker extends Thread  {
     // tokens format: [img,reciever,encodedImage,caption]
     private void decodeString(String[] tokens) throws Exception {
         System.out.println("Recieving from client...");
-        FileOutputStream fos = new FileOutputStream("/Users/aneledlamini/Desktop/NIS/sunset1.jpg"); // where the new
+        FileOutputStream fos = new FileOutputStream("C:/Users/Lulu/Desktop/cup.jpg"); // where the new
                                                                                                     // file will be
                                                                                                     // saved
         try {
