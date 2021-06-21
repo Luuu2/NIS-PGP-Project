@@ -1,6 +1,11 @@
 package ChatServer;
 
-import java.awt.image.BufferedImage;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Base64;
+import java.util.List;
+import java.util.Scanner;
+
 import java.io.BufferedOutputStream;
 import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
@@ -14,59 +19,80 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.ObjectOutputStream;
 import java.io.OutputStream;
-import java.net.ServerSocket;
-import java.net.Socket;
-import java.security.NoSuchAlgorithmException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Base64;
-import java.util.List;
-import java.util.Scanner;
-import java.security.cert.Certificate;
-import java.security.cert.CertificateFactory;
-import javax.security.auth.x500.X500Principal;
-import java.security.cert.X509Certificate;
-import java.security.cert.CertificateException;
-import java.security.cert.CertificateEncodingException;
-import java.security.*;
-
 import java.io.BufferedInputStream;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
-import java.io.InputStreamReader;
-import java.io.OutputStream;
 import java.io.ByteArrayInputStream;
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.File;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 
+import java.net.ServerSocket;
+import java.net.Socket;
+
+import java.security.InvalidKeyException;
+import java.security.KeyStore;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.security.PrivateKey;
+import java.security.SecureRandom;
+import java.security.Security;
+import java.security.SignatureException;
+
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 
-import javax.imageio.ImageIO;
+import java.security.cert.Certificate;
+import java.security.cert.CertificateFactory;
+import java.security.cert.X509Certificate;
+import java.security.cert.CertificateException;
+import java.security.cert.CertificateEncodingException;
+import javax.security.auth.x500.X500Principal;
 
-import java.security.SecureRandom;
 import javax.crypto.KeyGenerator;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.IvParameterSpec;
+
 import javax.imageio.ImageIO;
+import java.awt.image.BufferedImage;
+
+
 
 public class Server {
-    private final int serverPort;
-    private ArrayList<ServerWorker> workerList = new ArrayList<>();
-    private SecretKey sharedKey;
-    private IvParameterSpec sharedIv;
-    private ArrayList<UserClient> userList = new ArrayList<>();
     private static final String BC_PROVIDER = "BC";
     private static final String KEY_ALGORITHM = "RSA";
     private static final String SIGNATURE_ALGORITHM = "SHA256withRSA";
+    
+    private final int serverPort;
+
+    private ArrayList<UserClient> userList = new ArrayList<>();
+    private ArrayList<ServerWorker> workerList = new ArrayList<>();
+    private SecretKey sharedKey;
+    private IvParameterSpec sharedIv;
+    
     private Certificate certificate;
     private Certificate rootCertificate;
     private PrivateKey privateKey;
-    
+ 
+    public Server(int serverPort) {
+        this.serverPort = serverPort;
+        
+        try{
+            importKeyPairFromKeystoreFile("PGP-icert.pfx", "PGP-icert.cer", "PKCS12");
+        } catch(Exception e){
+            e.printStackTrace();
+        }   
+    }
+
+    public static void main(String[] args) {
+        Security.addProvider(new BouncyCastleProvider());
+        int port = 8818;
+        Server server = new Server(port);
+        try{
+            server.run();
+        } catch (Exception e){
+            System.out.println("Run Broke");
+            e.printStackTrace();
+        }
+        
+    }
+
 
     private void importKeyPairFromKeystoreFile(String fileNameKS, String fileNameC, String storeType) throws Exception {
         FileInputStream keyStoreOs;
@@ -114,23 +140,7 @@ public class Server {
             System.exit(0);
         }
     }
-    
-    public static void main(String[] args) {
-        Security.addProvider(new BouncyCastleProvider());
-        int port = 8818;
-        Server server = new Server(port);
-        server.run();
-        
-    }
 
-    public Server(int serverPort) {
-        this.serverPort = serverPort;
-        try{
-            importKeyPairFromKeystoreFile("PGP-icert.pfx", "PGP-icert.cer", "PKCS12");
-        } catch(Exception e){
-            e.printStackTrace();
-        }   
-    }
 
     public List<ServerWorker> getWorkerList() {
         return workerList;
@@ -203,17 +213,19 @@ public class Server {
             this.clientSocket = clientSocket;
             this.sharedKey = key;
             this.sharedIv = iv;
+        }
         
         public void run() {
             try {
                 HandleClient(); // this method is only ever called when a thread is started
                 System.out.println("Running HandleClient...");
-                e.printStackTrace();
             } catch (IOException e) {
+                e.printStackTrace();
             } catch (InterruptedException e) {
                 e.printStackTrace();
             }
         }
+
         private Certificate handleCertification() throws IOException, InterruptedException{
             System.out.println("Accepting certificate from Client");
 
@@ -243,12 +255,12 @@ public class Server {
             **/
             try {
                 System.out.println("Verification of User Certificate");
-            } catch (CertificateException | NoSuchAlgorithmException | InvalidKeyException e) {
                 cert.verify(rootCertificate.getPublicKey(), Security.getProvider(BC_PROVIDER)); 
+            } catch (CertificateException | NoSuchAlgorithmException | InvalidKeyException e) {
                 //handle wrong algos
                 System.out.print("Handle wrong algorithms");
-                //signature validation error
             } catch (SignatureException ex) {
+                //signature validation error
                 System.out.print("Signature validation error");
                 clientSocket.close();
                 return null;
@@ -262,8 +274,8 @@ public class Server {
             // Convert CERT into byte[]
             byte[] certificateBytes = null;
             try{
-            } catch( CertificateEncodingException e ){
                 certificateBytes = certificate.getEncoded();
+            } catch( CertificateEncodingException e ){
                 System.out.println("Certificate Encoding Exception error");
                 e.printStackTrace();
             } catch( Exception e ){
@@ -304,10 +316,11 @@ public class Server {
                     if ("quit".equalsIgnoreCase(cmd) || "logoff".equalsIgnoreCase(cmd)) {
                         handleLogoff();
                         break;
-                        handleLogin(output, tokens);
+                        
                     } else if ("login".equalsIgnoreCase(cmd)) {
                         System.out.println(sharedKey);
                         System.out.println(sharedIv);
+                        handleLogin(output, tokens, cert);
                     } else if ("msg".equalsIgnoreCase(cmd)) {
                         String[] msgTokens = line.split(" ", 3);
                         handleMessage(msgTokens);
@@ -372,8 +385,8 @@ public class Server {
                 if (sendTo.equalsIgnoreCase(worker.getLogin())) {
                     String outMsg = "img " + login + " " + cipher + "\n";
                     try {
-                    } catch (IOException e) {
                         worker.send(outMsg);
+                    } catch (IOException e) {
                         // TODO Auto-generated catch block
                         e.printStackTrace();
                     }
@@ -437,11 +450,12 @@ public class Server {
                         }
                     //send other online users current user's status
                     }
-                    }
+                    
                     for(ServerWorker worker: workerList){
                         if(!login.equals(worker.getLogin())){
                             worker.send(onlineMsg);
                         }
+                    }
                 }
                 else {
                     String msg = "error login\n";
@@ -481,8 +495,8 @@ public class Server {
             try{
                 MessageDigest md = MessageDigest.getInstance("SHA-256", BC_PROVIDER);
                 md.update(md.digest( (user + " " + pw).getBytes(StandardCharsets.UTF_8) ));
-            }catch(Exception e){
                 hPassword = md.digest( pw.getBytes(StandardCharsets.UTF_8) );
+            }catch(Exception e){
                 e.printStackTrace();
             }
             return hPassword;
@@ -492,8 +506,8 @@ public class Server {
             File sct = new File("ServerCoolTings.txt");
             Scanner scan = new Scanner(sct);
             while(scan.hasNextLine()){
-                if(line.startsWith(this.userName)){
                 String line = scan.nextLine().replace("\n", "");
+                if(line.startsWith(this.userName)){
                     String shaValue = line.split(":")[1];
                     String stringSHAedPW = Arrays.toString( SHAedPW ).replace(" ", "").replace("]", "").replace("[", "");
                     scan.close();
@@ -501,7 +515,8 @@ public class Server {
                 }
             }
             scan.close();
-        }
             return false;
+        }
+    }
     
 }
