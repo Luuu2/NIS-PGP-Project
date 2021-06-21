@@ -238,9 +238,9 @@ public class BouncyCastleCertificateGenerator {
 
     static void writeCertToFileBase64Encoded(Certificate certificate, String fileName) throws Exception {
         FileOutputStream certificateOut = new FileOutputStream(fileName);
-        certificateOut.write("-----BEGIN CERTIFICATE-----".getBytes());
+        certificateOut.write("-----BEGIN CERTIFICATE-----\n".getBytes());
         certificateOut.write(Base64.encode(certificate.getEncoded()));
-        certificateOut.write("-----END CERTIFICATE-----".getBytes());
+        certificateOut.write("\n-----END CERTIFICATE-----".getBytes());
         certificateOut.close();
     }
 }

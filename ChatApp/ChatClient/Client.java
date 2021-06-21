@@ -1,5 +1,6 @@
 package ChatClient;
 
+import java.io.BufferedInputStream;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
@@ -22,6 +23,7 @@ import java.security.*;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 
 public class Client{
+    private static final String BC_PROVIDER = "BC";
     private final String serverName;
     private final int serverPort;
     private OutputStream serverOut;
@@ -29,12 +31,11 @@ public class Client{
     private BufferedReader bufferIn;
     private final String userName;
     private final String password;
-    private static final String BC_PROVIDER = "BC";
     private Socket socket;
     private Scanner scanner;
     private Certificate certificate;
     private Certificate rootCertificate;
-    private PrivateKey privatetKey;
+    private PrivateKey privateKey;
 
     public Client(String serverName, int serverPort, String userName, String password){
         this.serverName = serverName;
@@ -43,17 +44,21 @@ public class Client{
         this.password = password;
 
         try{       
-            String certfile = userName.equalsIgnoreCase("Bob") ? "PGPiBcert.cer":"PGPiAcert.cer";
-            String ksfile = userName.equalsIgnoreCase("Bob") ? "PGPiBcertpfx":"PGPiAcert.pfx"; 
-            importKeyPairFromKeystoreFile(ksfile, certfile, "PKCS12");
+            String certfile = userName.equalsIgnoreCase("Bob") ? "PGP-iBcert.cer":"PGP-iAcert.cer";
+            String alias = userName.equalsIgnoreCase("Bob") ? "PGP-iBcert":"PGP-iAcert";
+            String ksfile = userName.equalsIgnoreCase("Bob") ? "PGP-iBcert.pfx":"PGP-iAcert.pfx"; 
+            importKeyPairFromKeystoreFile(ksfile, certfile, alias, "PKCS12");
 
         }catch( Exception e ){
+            System.out.print("Error Import");
             e.printStackTrace();
         }
     }
 
     public static void main(String[] args){
-        Client client = new Client("localhost", 8818, args[0], args[1]);
+        Security.addProvider(new BouncyCastleProvider());
+        //Client client = new Client("localhost", 8818, args[0], args[1]);
+        Client client = new Client("localhost", 8818, "Bob", "Bpass");
         if(client.connect()){
             System.out.println("Connect successful.");
             try {
@@ -67,39 +72,63 @@ public class Client{
         }
     }
 
-    private void importKeyPairFromKeystoreFile(String fileNameKS, String fileNameC, String storeType) throws Exception {
+    private void importKeyPairFromKeystoreFile(String fileNameKS, String fileNameC, String alias, String storeType) throws Exception {
         FileInputStream keyStoreOs;
-        FileInputStream certOs;
+        FileInputStream userCert;
+        FileInputStream rootCert;
         try{
             keyStoreOs = new FileInputStream(fileNameKS);
-            certOs = new FileInputStream(fileNameC);
+            userCert = new FileInputStream(fileNameC);
+            rootCert = new FileInputStream("PGP-rcert.cer");
 
             System.out.println(keyStoreOs);
-            System.out.println(certOs);
+            System.out.println(userCert);
             KeyStore sslKeyStore = KeyStore.getInstance(storeType, BC_PROVIDER);
+            System.out.print("Keystore check: ");
+            System.out.println(sslKeyStore);
 
-            char[] keyPassword = "pass".toCharArray();
+            char[] keyPassword = password.toCharArray();
             sslKeyStore.load(keyStoreOs, keyPassword);
-            String alias = "PGP-icert";
+            System.out.print("Alias check: ");
+            System.out.println(alias);
 
             KeyStore.ProtectionParameter entryPassword = new KeyStore.PasswordProtection(keyPassword);
+            //System.out.print("Password check: ");
+            //System.out.println(entryPassword);
 
             KeyStore.PrivateKeyEntry privateKeyEntry = (KeyStore.PrivateKeyEntry)
             sslKeyStore.getEntry(alias, entryPassword);
-
-            this.privatetKey = privateKeyEntry.getPrivateKey();
-            System.out.println("Private Key");
-            System.out.println(this.privatetKey );
+            this.privateKey = privateKeyEntry.getPrivateKey();
 
             // GET CERT
-            this.certificate = privateKeyEntry.getCertificate();
-            System.out.println("Certificate");
-            System.out.println(this.certificate);
-            //
+            CertificateFactory cf = CertificateFactory.getInstance("X.509", BC_PROVIDER);
+            System.out.println("\nCertification Factory Check");
+            System.out.println( cf );
+            
+            System.out.println("Certification Check");
+            BufferedInputStream bisCert = new BufferedInputStream(userCert);
+            
+            while (bisCert.available() > 0) {
+                System.out.println("User Cert");
+                //System.out.println(bisCert);
+                this.certificate = cf.generateCertificate(bisCert);
+                System.out.println(certificate.toString());
+            }
 
+            System.out.println("Root Certification Check");
+            BufferedInputStream bisCertR = new BufferedInputStream(rootCert);
+            while (bisCertR.available() > 0) {
+                System.out.println("Root Cert");
+                //System.out.println(bisCertR);
+                this.rootCertificate = cf.generateCertificate(bisCertR);
+                System.out.println(rootCertificate.toString());
+            }
+
+            userCert.close();
+            rootCert.close();
         } catch(Exception e){
-            System.out.println(e);
-            System.exit(0);
+            System.out.println("Kubird!");
+            e.printStackTrace();
         }
     }
 
@@ -152,10 +181,10 @@ public class Client{
         /**
          * Sending user the server X509 certificate 
         **/
-        System.out.println("Sending certificate to Client");
         // Convert CERT into byte[]
         byte[] certificateBytes = null;
         try{
+            System.out.println(certificate);
             certificateBytes = certificate.getEncoded();
         } catch( CertificateEncodingException e ){
             System.out.println("Certificate Encoding Exception error");
@@ -180,8 +209,13 @@ public class Client{
          * Verifying server the X509 certificate 
         **/
         try{
-            certFactory = CertificateFactory.getInstance("X.509");                        
-            cert = certFactory.generateCertificate(input);
+            BufferedInputStream bis = new BufferedInputStream(input);
+            System.out.print("Check Server Certificate: ");
+            System.out.println(cert);
+            certFactory = CertificateFactory.getInstance("X.509");
+                
+            cert = certFactory.generateCertificate(bis);
+            System.out.println(cert);
             System.out.println("X.509 Certificate Constructed");
         }catch( CertificateException e ){
             System.out.println("X.509 Certificate Not Constructed");
@@ -192,6 +226,7 @@ public class Client{
          * Verifying server the X509 certificate 
         **/
         try {
+            System.out.println("Verification of User Certificate");
             cert.verify(rootCertificate.getPublicKey(), Security.getProvider(BC_PROVIDER)); 
         } catch (CertificateException | NoSuchAlgorithmException | InvalidKeyException e) {
             //handle wrong algos
@@ -288,201 +323,3 @@ public class Client{
 // From the sever we need to get the other client's certificate to verify customer as trustworthy
 // Thus certify othe client's certificate not server's certificate
 // Keep the CA server certificate as a trusted certificate. 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-/*public class Client {
-    private final String serverName;
-    private final int serverPort;
-    private OutputStream serverOut;
-    private Socket socket;
-    private InputStream serverIn;
-    private BufferedReader bufferIn;
-
-    private ArrayList<UserStatusListener> listeners = new ArrayList<>();
-    private ArrayList<MessageListener> messages = new ArrayList<>();
-
-    public Client(String serverName, int serverPort){
-        this.serverName = serverName;
-        this.serverPort = serverPort;
-    }
-
-    public static void main(String [] args) throws IOException {
-        Client client = new Client("localhost", 8818);
-
-        client.addListener(new UserStatusListener(){
-            @Override
-            public void online(String login) {
-                System.out.println("Online: "+login);
-                
-            }
-            @Override
-            public void offline(String login) {
-                System.out.println("Offline: "+login);    
-            }
-            
-        });
-
-        client.addMessageListeners(new MessageListener(){
-
-            @Override
-            public void onMessage(String fromLogin, String msgBody) {
-                System.out.println("You have a message from "+ fromLogin);
-                System.out.println("Message: "+ msgBody);
-                
-            }
-            
-        });
-
-        if(!client.connect()){
-            System.err.println("Connect failed.");
-        }
-        else{
-            System.out.println("Connect successful.");
-
-            if(client.login("guest", "guest")){
-                System.out.println("Login Successful");
-                client.msg("jim", "Hello World");
-            }
-            else{
-                System.out.println("Login Failed");
-            }
-
-            //client.logOff();
-            
-        }
-    }
-
-    private void msg(String sendto, String msgbody) throws IOException {
-        String cmd = "msg " + sendto + " "+ msgbody +"\n";
-        serverOut.write(cmd.getBytes());
-    }
-
-    private void logOff() throws IOException {
-        String cmd = "logoff\n";
-        serverOut.write(cmd.getBytes());
-
-    }
-
-    private boolean login(String userName, String password) throws IOException {
-        String cmd = "login "+ userName + " "+ password+"\n";
-        serverOut.write(cmd.getBytes());
-        String response = bufferIn.readLine();
-        System.out.println("Response Line: "+ response);
-        if("ok login".equalsIgnoreCase(response)){
-            startMessageReader();
-            return true;
-        }
-        else{
-            return false;
-        }
-    }
-
-    private void startMessageReader() {
-        Thread t = new Thread(){
-            public void run(){
-                readMessageLoop();
-            }
-        };
-        t.start();
-    }
-
-    protected void readMessageLoop() {
-        try{
-            String line;
-            while((line = bufferIn.readLine())!=null){
-                String [] tokens = line.split(" ", 3);
-                if(tokens!=null & tokens.length>0){
-                    String cmd = tokens[0];
-                    if ("online".equalsIgnoreCase(cmd)){
-                        handleOnline(tokens);
-                    }
-                    else if ("offline".equalsIgnoreCase(cmd)){
-                        handleOffline(tokens);
-                    }
-                    else if ("msg".equalsIgnoreCase(cmd)){
-                        handleMessage(tokens);
-                    }
-
-                }
-                
-            }
-        } catch (Exception e){
-            e.printStackTrace();
-            try {
-                socket.close();
-            } catch (IOException e1) {
-                e1.printStackTrace();
-            }
-        }
-    }
-
-    private void handleMessage(String [] tokens) {
-        String login = tokens [1];
-        String msgBody = tokens[2];
-
-        for(MessageListener message : messages){
-            message.onMessage(login, msgBody);
-        }
-    }
-
-    private void handleOffline(String[] tokens) {
-        String login = tokens [1];
-        for(UserStatusListener listener: listeners){
-            listener.offline(login);
-        }
-    }
-
-    private void handleOnline(String [] tokens) {
-        String login = tokens [1];
-        for(UserStatusListener listener: listeners){
-            listener.online(login);
-        }
-    }
-
-    private boolean connect() {
-        try {
-            this.socket = new Socket(serverName, serverPort);
-            System.out.println("Client port is "+socket.getLocalPort());
-            this.serverOut = socket.getOutputStream();
-            this.serverIn = socket.getInputStream();
-            this.bufferIn = new BufferedReader(new InputStreamReader(serverIn));
-            return true; 
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-        return false;
-    }
-
-    public void addListener(UserStatusListener userListener){
-        listeners.add(userListener);
-    }
-    public void removeListener(UserStatusListener userListener){
-        listeners.remove(userListener);
-    }
-
-    public void addMessageListeners(MessageListener message){
-        messages.add(message);
-    }
-
-    public void removeMessageListeners(MessageListener message){
-        messages.remove(message);
-    }
-}*/
