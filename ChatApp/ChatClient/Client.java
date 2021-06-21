@@ -1,6 +1,13 @@
 package ChatClient;
 
-import java.awt.image.BufferedImage;
+import java.util.ArrayList;
+import java.util.Base64;
+import java.util.Base64.Decoder;
+import java.util.zip.GZIPInputStream;
+import java.util.zip.GZIPOutputStream;
+import java.util.Scanner;
+
+import java.io.BufferedInputStream;
 import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -15,16 +22,27 @@ import java.io.InputStreamReader;
 import java.io.ObjectInputStream;
 import java.io.OutputStream;
 import java.io.PrintWriter;
-import java.net.Socket;
+import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
+
+import java.net.Socket;
+
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
+import java.security.KeyStore;
+import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.util.ArrayList;
-import java.util.Base64;
-import static java.nio.charset.StandardCharsets.UTF_8;
-import java.util.Base64.Decoder;
-import java.util.Scanner;
+import java.security.PrivateKey;
+import java.security.PublicKey;
+import java.security.Security;
+import java.security.SignatureException;
+import java.security.cert.Certificate;
+import java.security.cert.X509Certificate;
+import java.security.cert.CertificateFactory;
+import java.security.cert.CertificateException;
+import java.security.cert.CertificateEncodingException;
+
+import org.bouncycastle.jce.provider.BouncyCastleProvider;
 
 import javax.crypto.BadPaddingException;
 import javax.crypto.Cipher;
@@ -33,34 +51,61 @@ import javax.crypto.NoSuchPaddingException;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
+
+import java.awt.image.BufferedImage;
 import javax.imageio.ImageIO;
 
+
 public class Client {
+    private static final String BC_PROVIDER = "BC";
+    private static final String KEY_ALGORITHM = "RSA";
+    private static final String SIGNATURE_ALGORITHM = "SHA256withRSA";
+
     private final String serverName;
-    private final int serverPort;
-    private OutputStream serverOut;
-    private InputStream serverIn;
-    private BufferedReader bufferIn;
     private final String userName;
     private final String password;
-    private Socket socket;
-    private Scanner scanner;
+    private final int serverPort;
+
+    private BufferedReader bufferIn;
     private DataInputStream dis;
     private ObjectInputStream ois;
-    private String cipher;
+    private OutputStream serverOut;
+    private InputStream serverIn;
+    private Socket socket;
+    private Scanner scanner;
+
     private SecretKey key;
     private IvParameterSpec iv;
-    String receiver;
-    String sender;
+
+    private String cipherAES;
+    private String cipherRSA;
+    private String receiver;
+    private String sender;
+
+    private Certificate certificate;
+    private Certificate rootCertificate;
+    private PrivateKey privateKey;
 
     public Client(String serverName, int serverPort, String userName, String password) {
         this.serverName = serverName;
         this.serverPort = serverPort;
         this.userName = userName;
         this.password = password;
+
+        String alias = userName.equalsIgnoreCase("Bob") ? "PGP-iBcert":"PGP-iAcert";
+        String certfile = alias + ".cer";
+        String ksfile = alias + ".pfx"; 
+
+        try{ 
+            importKeyPairFromKeystoreFile(ksfile, certfile, alias, "PKCS12");
+        }catch( Exception e ){
+            System.out.print("Error In Importing Key Pair From Keystore File");
+            e.printStackTrace();
+        }
     }
 
     public static void main(String[] args) throws ClassNotFoundException {
+        Security.addProvider(new BouncyCastleProvider());
         Client client = new Client("localhost", 8818, args[0], args[1]);
         if (client.connect()) {
             System.out.println("Connect successful.");
@@ -75,8 +120,68 @@ public class Client {
         }
     }
 
-    public boolean connect() {
-        try {
+    private void importKeyPairFromKeystoreFile(String fileNameKS, String fileNameC, String alias, String storeType) throws Exception {
+        FileInputStream keyStoreOs;
+        FileInputStream userCert;
+        FileInputStream rootCert;
+        try{
+            System.out.print("Certificates Files Present check: ");
+            keyStoreOs = new FileInputStream(fileNameKS);
+            //System.out.println(keyStoreOs);
+            userCert = new FileInputStream(fileNameC);
+            ///System.out.println(userCert);
+            rootCert = new FileInputStream("PGP-rcert.cer");
+            System.out.println("complete\n");
+
+            ////////////////////////////////////////////////////////
+
+            System.out.print("Keystore Accepted and Loaded: ");
+            KeyStore sslKeyStore = KeyStore.getInstance(storeType, BC_PROVIDER);
+            char[] keyPassword = password.toCharArray();
+
+            sslKeyStore.load(keyStoreOs, keyPassword);
+            KeyStore.ProtectionParameter entryPassword = new KeyStore.PasswordProtection(keyPassword);
+            KeyStore.PrivateKeyEntry privateKeyEntry = (KeyStore.PrivateKeyEntry)
+                sslKeyStore.getEntry(alias, entryPassword);
+            this.privateKey = privateKeyEntry.getPrivateKey();
+            System.out.println( (sslKeyStore != null) + "\n" );
+
+            // Get Certificates
+            System.out.print("Get Root and" + this.userName + "\'s Certificate");
+            CertificateFactory cf = CertificateFactory.getInstance("X.509", BC_PROVIDER);
+            
+            //System.out.println("Certification Check");
+            BufferedInputStream bisCert = new BufferedInputStream(userCert);
+            while (bisCert.available() > 0) {
+                System.out.print("User Certificate Present: ");
+                this.certificate = cf.generateCertificate(bisCert);
+                System.out.println(certificate != null);
+            }
+            userCert.close();
+
+            //System.out.println("Root Certification Check");
+            BufferedInputStream bisCertR = new BufferedInputStream(rootCert);
+            while (bisCertR.available() > 0) {
+                System.out.print("Root Certificate Present: ");
+                this.rootCertificate = cf.generateCertificate(bisCertR);
+                System.out.println(rootCertificate != null);
+            }
+            rootCert.close();
+            System.out.print("Certificates Retrieved");
+
+        }catch(FileNotFoundException e){
+            System.out.println("File Input Stream Error");
+            e.printStackTrace();
+            System.out.println("Exiting Program...");
+            System.exit(0);
+        } catch(Exception e){
+            System.out.println("Kubird!");
+            e.printStackTrace();
+        }
+    }
+
+    public boolean connect(){
+        try{
             this.socket = new Socket(serverName, serverPort);
             System.out.println("Connected to server");
             this.serverOut = socket.getOutputStream();
@@ -95,7 +200,14 @@ public class Client {
     }
 
     private boolean login() throws IOException, ClassNotFoundException {
-        String cmd = "login " + userName + " " + password + "\n";
+        // Certificaition Step
+        try{
+            handleCertification();
+        } catch (InterruptedException e){
+            e.printStackTrace();
+        }
+        // Certificaition Step
+        String cmd = "login "+ userName + " "+ password+"\n";
         serverOut.write(cmd.getBytes());
         String response = bufferIn.readLine();
         System.out.println("Response Line: " + response);
@@ -115,10 +227,78 @@ public class Client {
         }
     }
 
-    private void msgReader() {
-        Thread t = new Thread() {
-            public void run() {
-                while (true) {
+    //should be verifying the other client's certificate not the server's 
+    private void handleCertification() throws IOException, InterruptedException{
+        System.out.println("Sending certificate to Server");
+        InputStream input = this.serverIn;
+        OutputStream output = this.serverOut;
+
+        //////////////////////////////////////
+        /**
+         * Sending user the server X509 certificate 
+        **/
+        // Convert CERT into byte[]
+        byte[] certificateBytes = null;
+        try{
+            System.out.println("Show Certification");
+            System.out.println(certificate);
+            certificateBytes = certificate.getEncoded();
+        } catch( CertificateEncodingException e ){
+            System.out.println("Certificate Encoding Exception error");
+            e.printStackTrace();
+        } catch( Exception e ){
+            System.out.println("I don't know");
+            e.printStackTrace();
+        }
+        
+        if(certificateBytes == null){
+            System.out.println("Not Sending Certificate Bytes");
+        }else {
+            System.out.println("Sending Certificate Bytes");
+            output.write( certificateBytes );
+        }
+
+        //////////////////////////////////////////
+        CertificateFactory certFactory = null;                        
+        Certificate cert = null; // server certificate
+
+        /**
+         * Verifying server the X509 certificate 
+        **/
+        try{
+            BufferedInputStream bis = new BufferedInputStream(input);
+            System.out.print("Check Server Certificate: ");
+            System.out.println(cert);
+            certFactory = CertificateFactory.getInstance("X.509");
+                
+            cert = certFactory.generateCertificate(bis);
+            System.out.println(cert);
+            System.out.println("X.509 Certificate Constructed");
+        }catch( CertificateException e ){
+            System.out.println("X.509 Certificate Not Constructed");
+            e.printStackTrace();
+        } 
+
+        /**
+         * Verifying server the X509 certificate 
+        **/
+        try {
+            System.out.println("Verification of User Certificate");
+            cert.verify(rootCertificate.getPublicKey(), Security.getProvider(BC_PROVIDER)); 
+        } catch (CertificateException | NoSuchAlgorithmException | InvalidKeyException e) {
+            //handle wrong algos
+            System.out.print("handle wrong algorithms");
+        } catch (SignatureException ex) {
+            //signature validation error
+            System.out.print("signature validation error");
+        }
+
+    }
+
+    private void msgReader(){
+        Thread t = new Thread(){
+            public void run(){
+                while(true){
                     try {
                         String response = bufferIn.readLine();
                         String[] tokens = response.split(" ", 3);
@@ -138,21 +318,27 @@ public class Client {
                         } else if (tokens[0].equalsIgnoreCase("img")) {
                             // System.out.println(sender + ": " + tokens[2] + "\n");
                             try {
-                                // System.out.println("");
-                                //String captionFile = new String(tokens[2]); // "caption space base64Image"
-                                
-                                String [] div =tokens[2].split(" ", 2);
-                                //System.out.println(div[1]);
-                                //cipher = ci.getBytes();
-                                String plainText = decrypt("AES/CBC/PKCS5Padding", div[0] , key, iv);
-                                String [] imgCap = plainText.split(" ",2);
+                                String[] div = tokens[2].split(" ", 2);
+                                String plainTextRSA = decryptRSA("RSA/ECB/PKCS1Padding", div[0]);
+                                String plainTextAES = decryptAES("AES/CBC/PKCS5Padding", plainTextRSA, key, iv);
+                                String decompressedData = decompress(plainTextAES);
+                                String[] imgCap = decompressedData.split(" ", 2);
                                 decodeString(imgCap);
-                               // decodeString(captionFile.split(" ")); // new list format: [caption, base64Image]
                             } catch (Exception e) {
                                 e.printStackTrace();
                             }
-                        } else {
-                            System.out.println(response + "\n");
+                        }
+                        else if(tokens[0].equalsIgnoreCase("Offline")){
+                            System.out.println(sender +" logged off\n");
+                        }
+                        else if(tokens[0].equalsIgnoreCase("msg")){
+                            System.out.println(sender +": "+tokens[2]+"\n");
+                        }
+                        else if(tokens[0].equalsIgnoreCase("img")){
+                            System.out.println(sender +": "+tokens[2]+"\n");
+                        }
+                        else {
+                            System.out.println(response+"\n");
                         }
                     } catch (IOException e) {
                         e.printStackTrace();
@@ -176,8 +362,8 @@ public class Client {
                 boolean online = true;
                 while (online == true) {
                     String message = scanner.nextLine();
-                    String[] tokens = message.split(" ", 3);
-                    if (message.equalsIgnoreCase("quit") || message.equalsIgnoreCase("logoff")) {
+                    String [] tokens = message.split(" ", 3);
+                    if(message.equalsIgnoreCase("quit") || message.equalsIgnoreCase("logoff")){
                         String cmd = "quit";
                         try {
                             serverOut.write(cmd.getBytes());
@@ -187,9 +373,9 @@ public class Client {
                         break;
                     } else if (tokens[0].equalsIgnoreCase("img")) {
                         try {
-                            cipher = encrypt("AES/CBC/PKCS5Padding", encodeString(tokens, receiver), key, iv);
-                            System.out.println(cipher);
-                            String cmd = "img" +" "+ receiver + " " + cipher + "\n";
+                            cipherAES = encryptAES("AES/CBC/PKCS5Padding", encodeString(tokens, receiver), key, iv);
+                            cipherRSA = encryptRSA("RSA/ECB/PKCS1Padding", cipherAES, certificate);
+                            String cmd = "img" +" "+ receiver + " " + cipherRSA + "\n";
                             System.out.println("writing to server");
                             serverOut.write(cmd.getBytes());
                             System.out.println("wrote to server");
@@ -200,7 +386,6 @@ public class Client {
                     } else {
                         String cmd = "msg " + receiver + " " + message + "\n";
                         try {
-                            System.out.println ("somehow we are here");
                             serverOut.write(cmd.getBytes());
                         } catch (IOException e) {
                             e.printStackTrace();
@@ -236,64 +421,58 @@ public class Client {
     private String encodeString(String[] tokens, String receiver) throws Exception { // tokens format: [img,caption,file]
         String caption = tokens[1];
         //System.out.println(caption);
-        File f = new File("/home/kunta-kinte/Pictures/LovGrover.jpeg"); // file to be taken in (image path)
+        File f = new File("/Users/aneledlamini/Desktop/sunset.jpg"); // file to be taken in (image path)
         FileInputStream fis = new FileInputStream(f); // taking in file
         System.out.println("Still sending to server....");
         byte imageData[] = new byte[(int) f.length()];
         fis.read(imageData);
         String base64Image = Base64.getEncoder().encodeToString(imageData);
-        /*
-         * BufferedImage bImage = ImageIO.read(new File(tokens[2]));
-         * ByteArrayOutputStream bos = new ByteArrayOutputStream();
-         * ImageIO.write(bImage, "jpg", bos); byte[] b = bos.toByteArray(); fis.read(b,
-         * 0, b.length); // reading all bytes of file
-         */
-        //System.out.println("Still sending to server....");
-        // String cmd = "img " + receiver + " " + Base64.getEncoder().encodeToString(b)
-        // + " " + caption + "\n";
-        String cmd = "img " + receiver + " " + base64Image + " " + caption + "\n";
-        String encodedImgCap = base64Image + " " + caption;
-        //serverOut.write(cmd.getBytes());
-        //System.out.println("Sent to server");
+        String hashout = sha256(base64Image + " " + caption);
+        String encodedImgCap = compress(base64Image + " " + caption + " " + hashout);
         return encodedImgCap;
-        // System.out.println(cmd);
-
     }
 
     // token format from server: [baseImage,caption]
     private void decodeString(String[] tokens) throws Exception { // tokens format: ["img",reciever,caption base64Image]
                                                                   // -- takes in the caption + baseimage as one
         System.out.println("Recieving from server...");
-        FileOutputStream fos = new FileOutputStream("/home/kunta-kinte/Desktop/LovGrover.jpeg"); // where the new
+        FileOutputStream fos = new FileOutputStream("/Users/aneledlamini/Desktop/NIS/sunset.jpg"); // where the new
                                                                                                     // file
                                                                                                     // will be saved
         try {
-            // String captionFile = new String(tokens[2]).split(" "));
-            String file = new String(tokens[0]).replaceAll(" +", "+");
-            byte[] b = Base64.getDecoder().decode(file);
-            System.out.println("Recieving from server...");
-            // serverIn.read(b,0,b.length); //read bytes, i think it reads in what is sent
-            // after the above line e.g "hi" hence reads nothing into the file
-            fos.write(b); // write bytes to new file
-            System.out.println("Received!");
-            System.out.println(sender +" " +"sent an image with the caption "+tokens[1]);
+            String [] captionHash = new String(tokens[1]).split(" ",2);
+
+            //calculating hash
+            String hashin = sha256(tokens[0]+" "+captionHash[0]);
+            if (captionHash[1].equalsIgnoreCase(hashin)) {
+                String file = new String(tokens[0]).replaceAll(" +", "+");
+                byte[] b = Base64.getDecoder().decode(file);
+                System.out.println("Recieving from server...");
+                fos.write(b); // write bytes to new file
+                System.out.println("Received!");
+                System.out.println(sender + " " + "sent an image with the caption " + captionHash[0]);
+            }
+            else{
+                System.out.println("Confidentiality breached!");
+            }
         } catch (Exception e) {
             e.printStackTrace();
         }
     }
 
+    // AES decrypt + encrypt
     // encryting Base64 + caption String
-    public static String encrypt(String algorithm, String input, SecretKey key, IvParameterSpec iv)
+    private String encryptAES(String algorithm, String input, SecretKey key, IvParameterSpec iv)
             throws NoSuchPaddingException, NoSuchAlgorithmException, InvalidAlgorithmParameterException,
             InvalidKeyException, BadPaddingException, IllegalBlockSizeException {
         Cipher cipher = Cipher.getInstance(algorithm);
         cipher.init(Cipher.ENCRYPT_MODE, key, iv);
-        byte[] cipherText = cipher.doFinal(input.getBytes(UTF_8));
+        byte[] cipherText = cipher.doFinal(input.getBytes(StandardCharsets.UTF_8));
         return Base64.getEncoder().encodeToString(cipherText);
     }
 
     // decrypting Base64 + caption String
-    public static String decrypt(String algorithm, String cipherText, SecretKey key, IvParameterSpec iv)
+    private String decryptAES(String algorithm, String cipherText, SecretKey key, IvParameterSpec iv)
             throws NoSuchPaddingException, NoSuchAlgorithmException, InvalidAlgorithmParameterException,
             InvalidKeyException, BadPaddingException, IllegalBlockSizeException {
 
@@ -301,134 +480,72 @@ public class Client {
         cipher.init(Cipher.DECRYPT_MODE, key, iv);
 
         Decoder decoder = Base64.getMimeDecoder();
-        byte[] bytes = decoder.decode(cipherText.getBytes(UTF_8));
-        String decodedString = new String(bytes, UTF_8);
-        byte [] input = decodedString.getBytes(UTF_8);
+        byte[] bytes = decoder.decode(cipherText.getBytes(StandardCharsets.UTF_8));
         byte[] plainText = cipher.doFinal(bytes);
         return new String(plainText);
     }
 
-    // Lulu encde string method --- this has been implemented with the encodeString
-    // method
-    /*
-     * private String encodeFileToBase64Binary(File file) { String encodedfile =
-     * null; try { FileInputStream fileInputStreamReader = new
-     * FileInputStream(file); byte[] bytes = new byte[(int) file.length()];
-     * fileInputStreamReader.read(bytes); encodedfile =
-     * Base64.getEncoder().encodeToString(bytes); fileInputStreamReader.close(); }
-     * catch (FileNotFoundException e) { // TODO Auto-generated catch block
-     * e.printStackTrace(); } catch (IOException e) { // TODO Auto-generated catch
-     * block e.printStackTrace(); }
-     * 
-     * return encodedfile; }
-     */
+    // RSA encryption + decrypting
+    private String encryptRSA(String algorithm, String input, Certificate certif) throws NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException, IllegalBlockSizeException, BadPaddingException{
+       
+        Cipher cipher = Cipher.getInstance(algorithm);
+        cipher.init(Cipher.ENCRYPT_MODE, certif.getPublicKey());
+        byte[] cipherText = cipher.doFinal(input.getBytes(StandardCharsets.UTF_8));
+        return Base64.getEncoder().encodeToString(cipherText);
+    }
+
+    private String decryptRSA(String algorithm, String input) throws NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException, IllegalBlockSizeException, BadPaddingException{
+        Cipher cipher = Cipher.getInstance(algorithm);
+        cipher.init(Cipher.DECRYPT_MODE, privateKey);
+        byte[] cipherText = cipher.doFinal(input.getBytes(StandardCharsets.UTF_8));
+        return Base64.getEncoder().encodeToString(cipherText);
+    }
+
+
+    // hashing 
+    private static String sha256(String rawinput){
+        String hashout = "";
+        try{
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            digest.reset();
+            digest.update(rawinput.getBytes("utf8"));
+            hashout = String.format("%040x", new BigInteger(1, digest.digest()));
+        }
+        catch(Exception E){
+            System.out.println("Hash Exception");
+        }
+        return hashout;
+    }
+    // compression
+    private static String compress(String data) throws IOException {
+        ByteArrayOutputStream bos = new ByteArrayOutputStream(data.length());
+        GZIPOutputStream gzip = new GZIPOutputStream(bos);
+        gzip.write(data.getBytes());
+        gzip.close();
+        byte[] compressed = bos.toByteArray();
+        bos.close();
+        return Base64.getEncoder().encodeToString(compressed);
+    }
+
+    private static String decompress(String st) throws IOException {
+        byte[] compressed = Base64.getDecoder().decode(st);
+        ByteArrayInputStream bis = new ByteArrayInputStream(compressed);
+        GZIPInputStream gis = new GZIPInputStream(bis);
+        BufferedReader br = new BufferedReader(new InputStreamReader(gis, "UTF-8"));
+        StringBuilder sb = new StringBuilder();
+        String line;
+        while ((line = br.readLine()) != null) {
+            sb.append(line);
+        }
+        br.close();
+        gis.close();
+        bis.close();
+        return sb.toString();
+    }
 
 }
 
-/*
- * public class Client { private final String serverName; private final int
- * serverPort; private OutputStream serverOut; private Socket socket; private
- * InputStream serverIn; private BufferedReader bufferIn;
- * 
- * private ArrayList<UserStatusListener> listeners = new ArrayList<>(); private
- * ArrayList<MessageListener> messages = new ArrayList<>();
- * 
- * public Client(String serverName, int serverPort){ this.serverName =
- * serverName; this.serverPort = serverPort; }
- * 
- * public static void main(String [] args) throws IOException { Client client =
- * new Client("localhost", 8818);
- * 
- * client.addListener(new UserStatusListener(){
- * 
- * @Override public void online(String login) {
- * System.out.println("Online: "+login);
- * 
- * }
- * 
- * @Override public void offline(String login) {
- * System.out.println("Offline: "+login); }
- * 
- * });
- * 
- * client.addMessageListeners(new MessageListener(){
- * 
- * @Override public void onMessage(String fromLogin, String msgBody) {
- * System.out.println("You have a message from "+ fromLogin);
- * System.out.println("Message: "+ msgBody);
- * 
- * }
- * 
- * });
- * 
- * if(!client.connect()){ System.err.println("Connect failed."); } else{
- * System.out.println("Connect successful.");
- * 
- * if(client.login("guest", "guest")){ System.out.println("Login Successful");
- * client.msg("jim", "Hello World"); } else{ System.out.println("Login Failed");
- * }
- * 
- * //client.logOff();
- * 
- * } }
- * 
- * private void msg(String sendto, String msgbody) throws IOException { String
- * cmd = "msg " + sendto + " "+ msgbody +"\n"; serverOut.write(cmd.getBytes());
- * }
- * 
- * private void logOff() throws IOException { String cmd = "logoff\n";
- * serverOut.write(cmd.getBytes());
- * 
- * }
- * 
- * private boolean login(String userName, String password) throws IOException {
- * String cmd = "login "+ userName + " "+ password+"\n";
- * serverOut.write(cmd.getBytes()); String response = bufferIn.readLine();
- * System.out.println("Response Line: "+ response);
- * if("ok login".equalsIgnoreCase(response)){ startMessageReader(); return true;
- * } else{ return false; } }
- * 
- * private void startMessageReader() { Thread t = new Thread(){ public void
- * run(){ readMessageLoop(); } }; t.start(); }
- * 
- * protected void readMessageLoop() { try{ String line; while((line =
- * bufferIn.readLine())!=null){ String [] tokens = line.split(" ", 3);
- * if(tokens!=null & tokens.length>0){ String cmd = tokens[0]; if
- * ("online".equalsIgnoreCase(cmd)){ handleOnline(tokens); } else if
- * ("offline".equalsIgnoreCase(cmd)){ handleOffline(tokens); } else if
- * ("msg".equalsIgnoreCase(cmd)){ handleMessage(tokens); }
- * 
- * }
- * 
- * } } catch (Exception e){ e.printStackTrace(); try { socket.close(); } catch
- * (IOException e1) { e1.printStackTrace(); } } }
- * 
- * private void handleMessage(String [] tokens) { String login = tokens [1];
- * String msgBody = tokens[2];
- * 
- * for(MessageListener message : messages){ message.onMessage(login, msgBody); }
- * }
- * 
- * private void handleOffline(String[] tokens) { String login = tokens [1];
- * for(UserStatusListener listener: listeners){ listener.offline(login); } }
- * 
- * private void handleOnline(String [] tokens) { String login = tokens [1];
- * for(UserStatusListener listener: listeners){ listener.online(login); } }
- * 
- * private boolean connect() { try { this.socket = new Socket(serverName,
- * serverPort); System.out.println("Client port is "+socket.getLocalPort());
- * this.serverOut = socket.getOutputStream(); this.serverIn =
- * socket.getInputStream(); this.bufferIn = new BufferedReader(new
- * InputStreamReader(serverIn)); return true; } catch (IOException e) {
- * e.printStackTrace(); } return false; }
- * 
- * public void addListener(UserStatusListener userListener){
- * listeners.add(userListener); } public void removeListener(UserStatusListener
- * userListener){ listeners.remove(userListener); }
- * 
- * public void addMessageListeners(MessageListener message){
- * messages.add(message); }
- * 
- * public void removeMessageListeners(MessageListener message){
- * messages.remove(message); } }
- */
+// Assume that server is already authenticated and known to client 
+// From the sever we need to get the other client's certificate to verify customer as trustworthy
+// Thus certify othe client's certificate not server's certificate
+// Keep the CA server certificate as a trusted certificate. 

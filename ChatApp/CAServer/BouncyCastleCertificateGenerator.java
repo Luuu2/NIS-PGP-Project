@@ -76,6 +76,7 @@ public class BouncyCastleCertificateGenerator {
         writeCertToFileBase64Encoded(rootCert, "PGP-rcert.cer");
         exportKeyPairToKeystoreFile(rootKeyPair, rootCert, "PGP-rcert", "PGP-rcert.pfx", "PKCS12", "pass");
 
+        ///////////////////////////////    A RANDOM    //////////////////////////////////////
         // Generate a new KeyPair and sign it using the Root Cert Private Key
         // by generating a CSR (Certificate Signing Request)
         X500Name issuedCertSubject = new X500Name("CN=PGP-icert");
@@ -124,6 +125,107 @@ public class BouncyCastleCertificateGenerator {
 
         //System.out.println(issuedCert);
         //System.out.println(issuedCertKeyPair);
+
+        ///////////////////////////////    BOB    //////////////////////////////////////
+        // Generate a new KeyPair and sign it using the Root Cert Private Key
+        // by generating a CSR (Certificate Signing Request)
+        X500Name issuedBCertSubject = new X500Name("CN=PGP-iBcert");
+        BigInteger issuedBCertSerialNum = new BigInteger(Long.toString(new SecureRandom().nextLong()));
+        KeyPair issuedBCertKeyPair = keyPairGenerator.generateKeyPair();
+
+        PKCS10CertificationRequestBuilder p10BuilderB = new JcaPKCS10CertificationRequestBuilder(issuedBCertSubject, issuedBCertKeyPair.getPublic());
+        JcaContentSignerBuilder csrBBuilderB = new JcaContentSignerBuilder(SIGNATURE_ALGORITHM).setProvider(BC_PROVIDER);
+
+        // Sign the new KeyPair with the root cert Private Key
+        ContentSigner csrBContentSigner = csrBBuilderB.build(rootKeyPair.getPrivate());
+        PKCS10CertificationRequest csrB = p10BuilderB.build(csrBContentSigner);
+
+        // Use the Signed KeyPair and CSR to generate an issued Certificate
+        // Here serial number is randomly generated. In general, CAs use
+        // a sequence to generate Serial number and avoid collisions
+        X509v3CertificateBuilder issuedBCertBuilder = new X509v3CertificateBuilder(rootCertIssuer, issuedBCertSerialNum, startDate, endDate, csrB.getSubject(), csrB.getSubjectPublicKeyInfo());
+
+        JcaX509ExtensionUtils issuedBCertExtUtils = new JcaX509ExtensionUtils();
+
+        // Add Extensions
+        // Use BasicConstraints to say that this Cert is not a CA
+        issuedBCertBuilder.addExtension(Extension.basicConstraints, true, new BasicConstraints(false));
+
+        // Add Issuer cert identifier as Extension
+        issuedBCertBuilder.addExtension(Extension.authorityKeyIdentifier, false, issuedBCertExtUtils.createAuthorityKeyIdentifier(rootCert));
+        issuedBCertBuilder.addExtension(Extension.subjectKeyIdentifier, false, issuedBCertExtUtils.createSubjectKeyIdentifier(csrB.getSubjectPublicKeyInfo()));
+
+        // Add intended key usage extension if needed
+        issuedBCertBuilder.addExtension(Extension.keyUsage, false, new KeyUsage(KeyUsage.keyEncipherment));
+
+        // Add DNS name is cert is to used for SSL
+        issuedBCertBuilder.addExtension(Extension.subjectAlternativeName, false, new DERSequence(new ASN1Encodable[] {
+                new GeneralName(GeneralName.dNSName, "mydomain.local"),
+                new GeneralName(GeneralName.iPAddress, "127.0.0.1")
+        }));
+
+        X509CertificateHolder issuedBCertHolder = issuedBCertBuilder.build(csrBContentSigner);
+        X509Certificate issuedBCert  = new JcaX509CertificateConverter().setProvider(BC_PROVIDER).getCertificate(issuedBCertHolder);
+
+        // Verify the issuedB cert signature against the root (issuer) cert
+        issuedBCert.verify(rootCert.getPublicKey(), BC_PROVIDER);
+
+        writeCertToFileBase64Encoded(issuedBCert, "PGP-iBcert.cer");
+        exportKeyPairToKeystoreFile(issuedBCertKeyPair, issuedBCert, "PGP-iBcert", "PGP-iBcert.pfx", "PKCS12", "Bpass");
+
+        //System.out.println(issuedBCert);
+        //System.out.println(issuedBCertKeyPair);
+
+        ///////////////////////////////    ALICE    //////////////////////////////////////
+        // Generate a new KeyPair and sign it using the Root Cert Private Key
+        // by generating a CSR (Certificate Signing Request)
+        X500Name issuedACertSubject = new X500Name("CN=PGP-iAcert");
+        BigInteger issuedACertSerialNum = new BigInteger(Long.toString(new SecureRandom().nextLong()));
+        KeyPair issuedACertKeyPair = keyPairGenerator.generateKeyPair();
+
+        PKCS10CertificationRequestBuilder p10BuilderA = new JcaPKCS10CertificationRequestBuilder(issuedACertSubject, issuedACertKeyPair.getPublic());
+        JcaContentSignerBuilder csrABuilder = new JcaContentSignerBuilder(SIGNATURE_ALGORITHM).setProvider(BC_PROVIDER);
+
+        // Sign the new KeyPair with the root cert Private Key
+        ContentSigner csrAContentSigner = csrABuilder.build(rootKeyPair.getPrivate());
+        PKCS10CertificationRequest csrA = p10BuilderA.build(csrAContentSigner);
+
+        // Use the Signed KeyPair and CSR to generate an issuedA Certificate
+        // Here serial number is randomly generated. In general, CAs use
+        // a sequence to generate Serial number and avoid collisions
+        X509v3CertificateBuilder issuedACertBuilder = new X509v3CertificateBuilder(rootCertIssuer, issuedACertSerialNum, startDate, endDate, csrA.getSubject(), csrA.getSubjectPublicKeyInfo());
+
+        JcaX509ExtensionUtils issuedACertExtUtils = new JcaX509ExtensionUtils();
+
+        // Add Extensions
+        // Use BasicConstraints to say that this Cert is not a CA
+        issuedACertBuilder.addExtension(Extension.basicConstraints, true, new BasicConstraints(false));
+
+        // Add Issuer cert identifier as Extension
+        issuedACertBuilder.addExtension(Extension.authorityKeyIdentifier, false, issuedACertExtUtils.createAuthorityKeyIdentifier(rootCert));
+        issuedACertBuilder.addExtension(Extension.subjectKeyIdentifier, false, issuedACertExtUtils.createSubjectKeyIdentifier(csrA.getSubjectPublicKeyInfo()));
+
+        // Add intended key usage extension if needed
+        issuedACertBuilder.addExtension(Extension.keyUsage, false, new KeyUsage(KeyUsage.keyEncipherment));
+
+        // Add DNS name is cert is to used for SSL
+        issuedACertBuilder.addExtension(Extension.subjectAlternativeName, false, new DERSequence(new ASN1Encodable[] {
+                new GeneralName(GeneralName.dNSName, "mydomain.local"),
+                new GeneralName(GeneralName.iPAddress, "127.0.0.1")
+        }));
+
+        X509CertificateHolder issuedACertHolder = issuedACertBuilder.build(csrAContentSigner);
+        X509Certificate issuedACert  = new JcaX509CertificateConverter().setProvider(BC_PROVIDER).getCertificate(issuedACertHolder);
+
+        // Verify the issuedA cert signature against the root (issuer) cert
+        issuedACert.verify(rootCert.getPublicKey(), BC_PROVIDER);
+
+        writeCertToFileBase64Encoded(issuedACert, "PGP-iAcert.cer");
+        exportKeyPairToKeystoreFile(issuedACertKeyPair, issuedACert, "PGP-iAcert", "PGP-iAcert.pfx", "PKCS12", "Apass");
+
+        //System.out.println(issuedACert);
+        //System.out.println(issuedACertKeyPair);
+
     }
 
     static void exportKeyPairToKeystoreFile(KeyPair keyPair, Certificate certificate, String alias, String fileName, String storeType, String storePass) throws Exception {
@@ -136,9 +238,9 @@ public class BouncyCastleCertificateGenerator {
 
     static void writeCertToFileBase64Encoded(Certificate certificate, String fileName) throws Exception {
         FileOutputStream certificateOut = new FileOutputStream(fileName);
-        certificateOut.write("-----BEGIN CERTIFICATE-----".getBytes());
+        certificateOut.write("-----BEGIN CERTIFICATE-----\n".getBytes());
         certificateOut.write(Base64.encode(certificate.getEncoded()));
-        certificateOut.write("-----END CERTIFICATE-----".getBytes());
+        certificateOut.write("\n-----END CERTIFICATE-----".getBytes());
         certificateOut.close();
     }
 }
