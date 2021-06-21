@@ -99,42 +99,46 @@ public class Server {
         FileInputStream certOs;
         FileInputStream rootCert;
         try{
+            System.out.print("Certificates Files Present check: ");
             keyStoreOs = new FileInputStream(fileNameKS);
+            //System.out.println(keyStoreOs);
             certOs = new FileInputStream(fileNameC);
+            ///System.out.println(userCert);
             rootCert = new FileInputStream("PGP-rcert.cer");
+            System.out.println("complete\n");
 
-            System.out.println(keyStoreOs);
-            System.out.println(certOs);
+            ////////////////////////////////////////////////////////
+
+            System.out.print("Keystore Accepted and Loaded: ");
             KeyStore sslKeyStore = KeyStore.getInstance(storeType, BC_PROVIDER);
-
             char[] keyPassword = "pass".toCharArray();
+            // NEED TO RUN SERVER WITH PASSWORD MAYBE - SECURITY ISSUE
             sslKeyStore.load(keyStoreOs, keyPassword);
             String alias = "PGP-icert";
 
             KeyStore.ProtectionParameter entryPassword = new KeyStore.PasswordProtection(keyPassword);
-
             KeyStore.PrivateKeyEntry privateKeyEntry = (KeyStore.PrivateKeyEntry)
-            sslKeyStore.getEntry(alias, entryPassword);
-
+                sslKeyStore.getEntry(alias, entryPassword);
             this.privateKey = privateKeyEntry.getPrivateKey();
-            System.out.println("Private Key");
-            System.out.println(this.privateKey);
+            System.out.println( (sslKeyStore != null) + "\n" );
+
+            ///////////////////////////////////////////
 
             // GET CERT
+            System.out.println("Get Root and Server Certificate");
+            System.out.print("User Certificate Present: ");
             this.certificate = privateKeyEntry.getCertificate();
-            System.out.println("Certificate");
-            System.out.println(this.certificate);
-            //
-
+            System.out.println(certificate != null);
+            
             CertificateFactory cf = CertificateFactory.getInstance("X.509", BC_PROVIDER);
             System.out.println("Root Certification Check");
             BufferedInputStream bisCertR = new BufferedInputStream(rootCert);
             while (bisCertR.available() > 0) {
-                System.out.println("Root Cert");
-                //System.out.println(bisCertR);
+                System.out.print("Root Certificate Present: ");
                 this.rootCertificate = cf.generateCertificate(bisCertR);
-                System.out.println(rootCertificate);
+                System.out.println(rootCertificate != null);
             }
+            rootCert.close();
         } catch(Exception e){
             System.out.println(e);
             System.exit(0);
@@ -159,12 +163,12 @@ public class Server {
             BufferedOutputStream bos = new BufferedOutputStream(fos);
             bos.write(sharedIv.getIV());
             bos.close();
-        } catch (FileNotFoundException e1) {
+        } catch (FileNotFoundException e) {
             // TODO Auto-generated catch block
-            e1.printStackTrace();
-        } catch (IOException e1) {
+            e.printStackTrace();
+        } catch (IOException e) {
             // TODO Auto-generated catch block
-            e1.printStackTrace();
+            e.printStackTrace();
         }
         
         try (ServerSocket serverSocket = new ServerSocket(serverPort)) {
@@ -217,16 +221,17 @@ public class Server {
         
         public void run() {
             try {
-                HandleClient(); // this method is only ever called when a thread is started
                 System.out.println("Running HandleClient...");
+                HandleClient(); // this method is only ever called when a thread is started
             } catch (IOException e) {
                 e.printStackTrace();
             } catch (InterruptedException e) {
                 e.printStackTrace();
             }
+            System.out.println("Client End...");
         }
 
-        private Certificate handleCertification() throws IOException, InterruptedException{
+        private Certificate handleClientCertification() throws IOException, InterruptedException{
             System.out.println("Accepting certificate from Client");
 
             InputStream input = clientSocket.getInputStream();
@@ -301,8 +306,20 @@ public class Server {
             this.output = clientSocket.getOutputStream();
             this.dos = new DataOutputStream(output);
             // Certificaition Step
-            Certificate cert = handleCertification();
-            // Certificaition Step
+            System.out.println("Certification Step - Beginning");
+            Certificate cert = null;
+            try{
+                cert = handleClientCertification();
+            }catch (InterruptedException e){
+                e.printStackTrace();
+            }
+            // If Handle Certification Failed for whatever reason return false
+            if(cert == null){
+                System.out.println("Certification Step - Failed");
+                throw new IOException("User certificate not present");
+            }
+            System.out.println("Certification Step - Complete");
+            // Certificaition Step - END
             BufferedReader reader = new BufferedReader(new InputStreamReader(input));
             String line;
             while ((line = reader.readLine()) != null) {
