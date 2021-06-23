@@ -147,25 +147,25 @@ public class Server {
     }
 
     public void run() throws NoSuchAlgorithmException {
-        generateKey();
-        generateIv();
+        //generateKey();
+        //generateIv();
         ObjectOutputStream oos;
         FileOutputStream fos;
-        try {
-            oos = new ObjectOutputStream(new FileOutputStream("Key.txt"));
-            oos.writeObject(sharedKey);
-            oos.close();
-            fos = new FileOutputStream(new File("IV.txt"));
-            BufferedOutputStream bos = new BufferedOutputStream(fos);
-            bos.write(sharedIv.getIV());
-            bos.close();
+       /* try {
+            //oos = new ObjectOutputStream(new FileOutputStream("Key.txt"));
+            //oos.writeObject(sharedKey);
+            //oos.close();
+            //fos = new FileOutputStream(new File("IV.txt"));
+            //BufferedOutputStream bos = new BufferedOutputStream(fos);
+           // bos.write(sharedIv.getIV());
+            //bos.close();
         } catch (FileNotFoundException e1) {
             // TODO Auto-generated catch block
             e1.printStackTrace();
         } catch (IOException e1) {
             // TODO Auto-generated catch block
             e1.printStackTrace();
-        }
+        }*/
         
         try (ServerSocket serverSocket = new ServerSocket(serverPort)) {
             while (true) {
@@ -182,7 +182,7 @@ public class Server {
             e.printStackTrace();
         }
     }
-
+/*
     public void generateKey() throws NoSuchAlgorithmException { // 256 bit key for 14 rounds
         KeyGenerator keyGenerator = KeyGenerator.getInstance("AES");
         keyGenerator.init(256);
@@ -194,7 +194,7 @@ public class Server {
         new SecureRandom().nextBytes(iv);
         sharedIv = new IvParameterSpec(iv);
     }
-
+*/
     public void removeWorker(ServerWorker serverWorker) {
         workerList.remove(serverWorker);
     }
@@ -310,7 +310,6 @@ public class Server {
                 String[] tokens = line.split(" ",3);
                 String cmd = tokens[0];
                 System.out.println("In handle client...");
-                System.out.println(cmd);
                 if (tokens != null && tokens.length > 0) {
                     System.out.println("Looking at tokens...");
                     if ("quit".equalsIgnoreCase(cmd) || "logoff".equalsIgnoreCase(cmd)) {
@@ -318,15 +317,13 @@ public class Server {
                         break;
                         
                     } else if ("login".equalsIgnoreCase(cmd)) {
-                        System.out.println(sharedKey);
-                        System.out.println(sharedIv);
                         handleLogin(output, tokens, cert);
                     } else if ("msg".equalsIgnoreCase(cmd)) {
                         String[] msgTokens = line.split(" ", 3);
                         handleMessage(msgTokens);
                     } else if ("img".equalsIgnoreCase(cmd)) {
-                        //String[] imgTokens = line.split(" ", 3);
-                        handleImage(tokens);
+                        String[] imgTokens = line.split(" ", 5);
+                        handleImage(imgTokens);
                     } else {
                         String msg = "Unknown " + cmd + "\n";
                         output.write(msg.getBytes());
@@ -334,7 +331,7 @@ public class Server {
                 }
             }
         }
-    
+    /*
         public void generateKey(String name) throws NoSuchAlgorithmException { // 256 bit key for 14 rounds
     
             String sendTo = name; // reciever
@@ -373,15 +370,18 @@ public class Server {
                 }
             }
         }
-    
+    */
         private void handleImage(String[] tokens) {
-            String sendTo = tokens[1];
-            String cipher = tokens[2];
+            String sendTo = tokens[1]; // reciever
+            String cipherAES = tokens[2]; // cipherAES
+            String cipherRSA = tokens[3]; // cipherRSA
+            String iv = tokens[4]; // IV
+             
             System.out.println("handling image");
             List<ServerWorker> workerList = server.getWorkerList();
             for (ServerWorker worker : workerList) {
                 if (sendTo.equalsIgnoreCase(worker.getLogin())) {
-                    String outMsg = "img " + login + " " + cipher + "\n";
+                    String outMsg = "img " + login + " " + cipherAES + " " + cipherRSA + " " + iv + "\n";
                     try {
                         worker.send(outMsg);
                     } catch (IOException e) {
