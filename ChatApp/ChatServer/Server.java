@@ -68,6 +68,8 @@ public class Server {
     
     private Certificate certificate;
     private Certificate rootCertificate;
+    private Certificate AliceCert;
+    private Certificate BobCert; 
     private PrivateKey privateKey;
  
     public Server(int serverPort) {
@@ -223,7 +225,7 @@ public class Server {
         public void run() {
             try {
                 System.out.println("Running HandleClient...");
-                HandleClient(); // this method is only ever called when a thread is started
+                handleClient(); // this method is only ever called when a thread is started
             } catch (IOException e) {
                 e.printStackTrace();
             } catch (InterruptedException e) {
@@ -299,7 +301,7 @@ public class Server {
             return cert;
 
         }
-        private void HandleClient() throws IOException, InterruptedException {
+        private void handleClient() throws IOException, InterruptedException {
             System.out.println("Server is still alive");
     
             this.input = clientSocket.getInputStream();
@@ -439,7 +441,7 @@ public class Server {
                     //REMOVE USER FROM USER LIST
                 }
             }
-            for (UserClient user : userList) {
+            for (ServerWorker worker : workerList){
                 if (!login.equals(worker.getLogin())) {
                     worker.send(offLineMsg);
                 }else{
@@ -460,33 +462,60 @@ public class Server {
                 String password = tokens[2];
                 
                 UserClient user = new UserClient(login, password, certificate);
-                if (user.checkSHA()&& certificate!=null){
+                if (user.checkSHA()&& user.certificate!=null){
+                    System.out.println(user.userName);
+                    if(user.userName.equals("Alice")){
+                        AliceCert = user.certificate;
+                        System.out.println(AliceCert.toString());
+                    }else{
+                        BobCert = user.certificate;
+                        System.out.println(BobCert.toString());
+                    }
                     String msg = "ok login\n";
                     output.write(msg.getBytes());
                     this.login = login;
                     System.out.println("User logged in successfully: " + login);
-                    String onlineMsg = "online "+login +"\n";
+                    String onlineMsg = "online: "+login +"\n";
                     List<ServerWorker> workerList = server.getWorkerList();
                     server.userList.add(user);
+                    while(workerList.size()<2){
+                        //System.out.println("Waiting for both clients to log on");
+                    }
     
                     //send current user all other online logins
                     for(ServerWorker worker: workerList){
                         if(worker.getLogin() != null){
                             if(!login.equals(worker.getLogin())){
-                                String msg2 = "online "+ worker.getLogin() + '\n';
+                                //if()
+                                String msg2 = "online: "+ worker.getLogin() + '\n';
                                 send(msg2);
+                                if(worker.getLogin().equals("Alice")){
+                                    //System.out.println(BobCert.toString());
+                                    sendCert(AliceCert);
+                                }
+                                else {
+                                    //System.out.println(AliceCert.toString());
+                                    sendCert(BobCert);
+                                }
+
                             }
                         }
-                    //send other online users current user's status
-                    }
                     
+                    }
+
+                    //send other online users current user's status
                     for(ServerWorker worker: workerList){
                         if(!login.equals(worker.getLogin())){
                             worker.send(onlineMsg);
-                            //worker.send(userList.);
-                            // send certificate here
+                            if(worker.getLogin().equals("Alice")){
+                                worker.sendCert(BobCert);
+                            }
+                            else{
+                                worker.sendCert(AliceCert);
+                            }
                         }
                     }
+
                 }
                 else {
                     String msg = "error login\n";
@@ -502,6 +531,30 @@ public class Server {
         }
         private void send(byte[] bytes) throws IOException {
             output.write(bytes);
+        }
+
+        private void sendCert(Certificate cert) throws IOException {
+            System.out.println("Sending certificate to Client");
+            // Convert CERT into byte[]
+            byte[] certificateBytes = null;
+            try{
+                System.out.println(cert.toString());
+                certificateBytes = cert.getEncoded();
+            } catch( CertificateEncodingException e ){
+                System.out.println("Certificate Encoding Exception error");
+                e.printStackTrace();
+            } catch( Exception e ){
+                System.out.println("I don't know");
+                e.printStackTrace();
+            }
+            
+            if(certificateBytes == null){
+                System.out.println("Not Sending Certificate Bytes");
+            }else {
+                System.out.println("Sending Certificate Bytes");
+                output.write( certificateBytes );
+            }
+
         }
     }
 

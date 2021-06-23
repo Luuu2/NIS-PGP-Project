@@ -23,7 +23,7 @@ import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
 
 import java.net.Socket;
-
+import java.net.SocketException;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.KeyStore;
@@ -79,6 +79,8 @@ public class Client {
 
     private Certificate certificate;
     private Certificate rootCertificate;
+    private Certificate otherUserCert= null;
+    private Certificate serverCert;
     private PrivateKey privateKey;
 
     public Client(String serverName, int serverPort, String userName, String password) {
@@ -213,13 +215,17 @@ public class Client {
         String response = bufferIn.readLine();
         System.out.println("Response Line: " + response);
         if ("ok login".equalsIgnoreCase(response)) {
-            getKey();
+            /*getKey();
             //this.key = getKey();
             System.out.print("Key Present: ");
             System.out.println(key != null);
             getIv();
             System.out.print("IV Present: ");
-            System.out.println(iv != null);
+            System.out.println(iv != null);*/
+            String res = bufferIn.readLine();
+            System.out.println(res);
+            receiveCert();
+            System.out.println(otherUserCert.toString());
             msgReader();
             msgWriter();
             return true;
@@ -228,7 +234,25 @@ public class Client {
         }
     }
 
-    //should be verifying the other client's certificate and the server's
+    private void receiveCert(){
+        InputStream input = this.serverIn;
+        
+        try{
+            BufferedInputStream bis = new BufferedInputStream(input);
+            System.out.println(bis.toString());
+            CertificateFactory cf = CertificateFactory.getInstance("X.509");
+            //System.out.println(otherUserCert.toString());
+            otherUserCert = cf.generateCertificate(bis);
+            //System.out.println(otherUserCert.toString());
+            System.out.println(otherUserCert != null);
+            System.out.println("X.509 Certificate Constructed");
+        }catch( CertificateException e ){
+            System.out.println("X.509 Certificate Not Constructed");
+            e.printStackTrace();
+        } 
+    }
+
+    //send our certificate to server and receive a certificate from the server then verify
     private boolean handleCertification() throws IOException, InterruptedException{
         System.out.println("Sending certificate to Server");
         InputStream input = this.serverIn;
@@ -287,6 +311,8 @@ public class Client {
         try{
             cert.verify(rootCertificate.getPublicKey(), Security.getProvider(BC_PROVIDER)); 
             System.out.println("complete");
+            serverCert = cert;
+            System.out.println(serverCert.toString());
             return true;
         }catch (NoSuchAlgorithmException | InvalidKeyException e) {
             //handle wrong algos
@@ -324,6 +350,8 @@ public class Client {
                         }
                         if (tokens[0].equalsIgnoreCase("online")) {
                             System.out.println(sender + " is online\n");
+                            //System.out.println(otherUserCert.toString());
+                            
                         } else if (tokens[0].equalsIgnoreCase("offline")) {
                             System.out.println(sender + " logged off\n");
                         } else if (tokens[0].equalsIgnoreCase("msg")) {
@@ -385,7 +413,6 @@ public class Client {
                     } else {
                         String cmd = "msg " + receiver + " " + message + "\n";
                         try{
-                            System.out.println ("somehow we are here");
                             serverOut.write(cmd.getBytes());
                         }catch (IOException e) {
                             e.printStackTrace();
