@@ -3,6 +3,7 @@ package ChatServer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
+import java.util.Hashtable;
 import java.util.List;
 import java.util.Scanner;
 
@@ -32,6 +33,7 @@ import java.security.KeyStore;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
+import java.security.PublicKey;
 import java.security.SecureRandom;
 import java.security.Security;
 import java.security.SignatureException;
@@ -71,17 +73,20 @@ public class Server {
     private Certificate AliceCert;
     private Certificate BobCert; 
     private PrivateKey privateKey;
+    private Hashtable<String, PublicKey> keyRing;
  
     public Server(int serverPort) {
         this.serverPort = serverPort;
         
         try{
             importKeyPairFromKeystoreFile("PGP-icert.pfx", "PGP-icert.cer", "PKCS12");
+            generateKeyChain();
+            //System.out.println("Alice Public Key: "+ keyRing.get("Alice"));
+            //System.out.println("Bob Public Key: "+ keyRing.get("Bob"));
         } catch(Exception e){
             e.printStackTrace();
         }   
     }
-
     public static void main(String[] args) {
         Security.addProvider(new BouncyCastleProvider());
         int port = 8818;
@@ -95,6 +100,35 @@ public class Server {
         
     }
 
+    private void generateKeyChain(){
+        FileInputStream Alice;
+        FileInputStream Bob;
+        keyRing = new Hashtable<String, PublicKey>();
+        try{
+            Alice = new FileInputStream("PGP-iAcert.cer");
+            Bob = new FileInputStream("PGP-iBcert.cer");
+            CertificateFactory cf= CertificateFactory.getInstance("X.509", BC_PROVIDER);                       
+            BufferedInputStream bisAlice = new BufferedInputStream(Alice);
+            while (bisAlice.available() > 0) {
+                System.out.print("Root Certificate Present: ");
+                this.AliceCert = cf.generateCertificate(bisAlice);
+                System.out.println(rootCertificate != null);
+            }
+            Alice.close();
+            BufferedInputStream bisBob = new BufferedInputStream(Bob);
+            while (bisBob.available() > 0) {
+                System.out.print("Root Certificate Present: ");
+                this.BobCert = cf.generateCertificate(bisBob);
+                System.out.println(rootCertificate != null);
+            }
+            Bob.close();
+            keyRing.put("Alice", AliceCert.getPublicKey());
+            keyRing.put("Bob", BobCert.getPublicKey());
+
+        }catch(Exception e){
+            e.printStackTrace();
+        }
+    }
 
     private void importKeyPairFromKeystoreFile(String fileNameKS, String fileNameC, String storeType) throws Exception {
         FileInputStream keyStoreOs;
@@ -301,6 +335,7 @@ public class Server {
             return cert;
 
         }
+        
         private void handleClient() throws IOException, InterruptedException {
             System.out.println("Server is still alive");
     
@@ -372,6 +407,7 @@ public class Server {
             }
     
         }
+       
         private void sendKey(SecretKey key) throws IOException {
             if (login != null) {
                 dos.write(key.getEncoded());
@@ -423,6 +459,7 @@ public class Server {
             for (ServerWorker worker : workerList) {
                 if (sendTo.equalsIgnoreCase(worker.getLogin())) {
                     String outMsg = "msg " + login + " " + body + "\n";
+                    System.out.println("Sending message to "+ login);
                     worker.send(outMsg);
                 }
             }
@@ -464,39 +501,46 @@ public class Server {
                 UserClient user = new UserClient(login, password, certificate);
                 if (user.checkSHA()&& user.certificate!=null){
                     System.out.println(user.userName);
-                    if(user.userName.equals("Alice")){
-                        AliceCert = user.certificate;
-                        System.out.println(AliceCert.toString());
-                    }else{
-                        BobCert = user.certificate;
-                        System.out.println(BobCert.toString());
-                    }
                     String msg = "ok login\n";
                     output.write(msg.getBytes());
                     this.login = login;
                     System.out.println("User logged in successfully: " + login);
-                    String onlineMsg = "online: "+login +"\n";
-                    List<ServerWorker> workerList = server.getWorkerList();
-                    server.userList.add(user);
-                    while(workerList.size()<2){
-                        //System.out.println("Waiting for both clients to log on");
+                    
+                    //send other user public key
+                    System.out.println("Sending Public key to "+user.userName);
+                    //System.out.println(keyRing.get(user.userName).getEncoded().getClass());
+                    if(user.userName.equalsIgnoreCase("Alice")){
+                        send(keyRing.get("Bob").getEncoded());
+                    }else{
+                        send(keyRing.get("Alice").getEncoded());
                     }
+                    System.out.println("Public Key sent to "+ user.userName);
+
+                    String onlineMsg = "online: "+login +"\n";
+
+                    List<ServerWorker> workerList = server.getWorkerList();
+                    //server.userList.add(user);
+
+                    /*while(workerList.size()<2){
+                        //System.out.println("Waiting for both clients to log on");
+                    }*/
     
                     //send current user all other online logins
                     for(ServerWorker worker: workerList){
                         if(worker.getLogin() != null){
                             if(!login.equals(worker.getLogin())){
-                                //if()
                                 String msg2 = "online: "+ worker.getLogin() + '\n';
                                 send(msg2);
-                                if(worker.getLogin().equals("Alice")){
-                                    //System.out.println(BobCert.toString());
-                                    sendCert(AliceCert);
+                                /*if(worker.getLogin().equals("Alice")){
+                                    System.out.println("Sending Public key to Alice");
+                                    send(keyRing.get("Alice").getEncoded());
+                                    System.out.println("Public Key sent to Alice");
                                 }
                                 else {
-                                    //System.out.println(AliceCert.toString());
-                                    sendCert(BobCert);
-                                }
+                                    System.out.println("Sending Public Key to Bob");
+                                    send(keyRing.get("Bob").getEncoded());
+                                    System.out.println("Public Key sent to Bob");
+                                }*/
 
                             }
                         }
@@ -507,12 +551,16 @@ public class Server {
                     for(ServerWorker worker: workerList){
                         if(!login.equals(worker.getLogin())){
                             worker.send(onlineMsg);
-                            if(worker.getLogin().equals("Alice")){
-                                worker.sendCert(BobCert);
+                            /*if(worker.getLogin().equals("Alice")){
+                                System.out.println("Sending Public Key to Bob");
+                                send(keyRing.get("Bob").getEncoded());
+                                System.out.println("Public Key sent to Bob");
                             }
                             else{
-                                worker.sendCert(AliceCert);
-                            }
+                                System.out.println("Sending certificate to Alice");
+                                send(keyRing.get("Alice").getEncoded());
+                                System.out.println("Certificate sent to Alice");
+                            }*/
                         }
                     }
 
@@ -534,11 +582,11 @@ public class Server {
         }
 
         private void sendCert(Certificate cert) throws IOException {
-            System.out.println("Sending certificate to Client");
+            //System.out.println("Sending certificate to Client");
             // Convert CERT into byte[]
             byte[] certificateBytes = null;
             try{
-                System.out.println(cert.toString());
+                //System.out.println(cert.toString());
                 certificateBytes = cert.getEncoded();
             } catch( CertificateEncodingException e ){
                 System.out.println("Certificate Encoding Exception error");

@@ -26,6 +26,7 @@ import java.net.Socket;
 import java.net.SocketException;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
+import java.security.KeyFactory;
 import java.security.KeyStore;
 import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
@@ -34,6 +35,8 @@ import java.security.Security;
 import java.security.SignatureException;
 import java.security.cert.Certificate;
 import java.security.cert.X509Certificate;
+import java.security.spec.InvalidKeySpecException;
+import java.security.spec.X509EncodedKeySpec;
 import java.security.cert.CertificateFactory;
 import java.security.cert.CertificateException;
 import java.security.cert.CertificateEncodingException;
@@ -80,6 +83,7 @@ public class Client {
     private Certificate certificate;
     private Certificate rootCertificate;
     private Certificate otherUserCert= null;
+    private PublicKey otherUserKey; 
     private Certificate serverCert;
     private PrivateKey privateKey;
 
@@ -222,10 +226,27 @@ public class Client {
             getIv();
             System.out.print("IV Present: ");
             System.out.println(iv != null);*/
-            String res = bufferIn.readLine();
-            System.out.println(res);
-            receiveCert();
-            System.out.println(otherUserCert.toString());
+            
+            //Receive otherUserKey
+            while(serverIn.available()==0){
+                //
+            }
+            BufferedInputStream getkey = new BufferedInputStream(serverIn);
+            int keySize = getkey.available();
+            System.out.println("Public Key Size: "+ keySize);
+            byte[] key = new byte[keySize];
+            getkey.read(key, 0, keySize);
+            try {
+                otherUserKey = KeyFactory.getInstance("RSA").generatePublic(new X509EncodedKeySpec(key));
+            } catch (InvalidKeySpecException e) {
+                System.out.println("Invalid key spec");
+            } catch (NoSuchAlgorithmException e) {
+                System.out.println("No such algorithm");
+            }
+
+            System.out.println("Public Key: "+ otherUserKey.toString());
+
+            //System.out.println(otherUserCert.toString());
             msgReader();
             msgWriter();
             return true;
@@ -235,12 +256,13 @@ public class Client {
     }
 
     private void receiveCert(){
-        InputStream input = this.serverIn;
+        //InputStream input = this.serverIn;
         
         try{
-            BufferedInputStream bis = new BufferedInputStream(input);
+            BufferedInputStream bis = new BufferedInputStream(serverIn);
             System.out.println(bis.toString());
             CertificateFactory cf = CertificateFactory.getInstance("X.509");
+            System.out.println("CF created.");
             //System.out.println(otherUserCert.toString());
             otherUserCert = cf.generateCertificate(bis);
             //System.out.println(otherUserCert.toString());
@@ -250,6 +272,13 @@ public class Client {
             System.out.println("X.509 Certificate Not Constructed");
             e.printStackTrace();
         } 
+
+        /*try {
+            input.close();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }*/
+
     }
 
     //send our certificate to server and receive a certificate from the server then verify
@@ -389,6 +418,7 @@ public class Client {
             public void run() {
                 boolean online = true;
                 while (online == true) {
+                    System.out.println(userName + "'s writer is alive");
                     String message = scanner.nextLine();
                     String [] tokens = message.split(" ", 3);
                     if(message.equalsIgnoreCase("quit") || message.equalsIgnoreCase("logoff")){
