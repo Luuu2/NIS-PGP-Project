@@ -339,9 +339,7 @@ public class Client {
         **/
         try{
             cert.verify(rootCertificate.getPublicKey(), Security.getProvider(BC_PROVIDER)); 
-            System.out.println("complete");
-            serverCert = cert;
-            System.out.println(serverCert.toString());
+            System.out.println("complete\n");
             return true;
         }catch (NoSuchAlgorithmException | InvalidKeyException e) {
             //handle wrong algos

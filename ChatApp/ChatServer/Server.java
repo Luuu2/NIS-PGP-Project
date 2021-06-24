@@ -85,7 +85,8 @@ public class Server {
             //System.out.println("Bob Public Key: "+ keyRing.get("Bob"));
         } catch(Exception e){
             e.printStackTrace();
-        }   
+        }
+        System.out.println("\n###################################\n");
     }
     public static void main(String[] args) {
         Security.addProvider(new BouncyCastleProvider());
@@ -104,20 +105,21 @@ public class Server {
         FileInputStream Alice;
         FileInputStream Bob;
         keyRing = new Hashtable<String, PublicKey>();
+        System.out.println("");
         try{
             Alice = new FileInputStream("PGP-iAcert.cer");
             Bob = new FileInputStream("PGP-iBcert.cer");
             CertificateFactory cf= CertificateFactory.getInstance("X.509", BC_PROVIDER);                       
             BufferedInputStream bisAlice = new BufferedInputStream(Alice);
             while (bisAlice.available() > 0) {
-                System.out.print("Root Certificate Present: ");
+                System.out.print("Alice Certificate Present: ");
                 this.AliceCert = cf.generateCertificate(bisAlice);
                 System.out.println(rootCertificate != null);
             }
             Alice.close();
             BufferedInputStream bisBob = new BufferedInputStream(Bob);
             while (bisBob.available() > 0) {
-                System.out.print("Root Certificate Present: ");
+                System.out.print("Bob Certificate Present: ");
                 this.BobCert = cf.generateCertificate(bisBob);
                 System.out.println(rootCertificate != null);
             }
@@ -132,14 +134,10 @@ public class Server {
 
     private void importKeyPairFromKeystoreFile(String fileNameKS, String fileNameC, String storeType) throws Exception {
         FileInputStream keyStoreOs;
-        FileInputStream certOs;
         FileInputStream rootCert;
         try{
             System.out.print("Certificates Files Present check: ");
             keyStoreOs = new FileInputStream(fileNameKS);
-            //System.out.println(keyStoreOs);
-            certOs = new FileInputStream(fileNameC);
-            ///System.out.println(userCert);
             rootCert = new FileInputStream("PGP-rcert.cer");
             System.out.println("complete\n");
 
@@ -162,12 +160,11 @@ public class Server {
 
             // GET CERT
             System.out.println("Get Root and Server Certificate");
-            System.out.print("User Certificate Present: ");
+            System.out.print("Server Certificate Present: ");
             this.certificate = privateKeyEntry.getCertificate();
             System.out.println(certificate != null);
             
             CertificateFactory cf = CertificateFactory.getInstance("X.509", BC_PROVIDER);
-            System.out.println("Root Certification Check");
             BufferedInputStream bisCertR = new BufferedInputStream(rootCert);
             while (bisCertR.available() > 0) {
                 System.out.print("Root Certificate Present: ");
@@ -175,6 +172,7 @@ public class Server {
                 System.out.println(rootCertificate != null);
             }
             rootCert.close();
+            keyStoreOs.close();
         } catch(Exception e){
             System.out.println(e);
             System.exit(0);
@@ -206,17 +204,17 @@ public class Server {
             // TODO Auto-generated catch block
             e.printStackTrace();
         }
-        
+
         try (ServerSocket serverSocket = new ServerSocket(serverPort)) {
-            while (true) {
-                System.out.println("Server is alive\n");
+            System.out.println("Server is alive\n");
+            while (true) {   
                 Socket clientSocket = serverSocket.accept();
                 ServerWorker worker = new ServerWorker(this, clientSocket, sharedKey, sharedIv);
                 System.out.println("New ServerWorker Thread created");
+                //// ADD LOCK
                 workerList.add(worker);
+                //// ADD LOCK
                 worker.start();
-                
-
             }
         } catch (IOException e) {
             System.out.println("Server issues");
@@ -241,8 +239,8 @@ public class Server {
     }
     public class ServerWorker extends Thread  {
         private final Socket clientSocket;
-        private String login = null;
         private final Server server;
+        private String login = null;
         private OutputStream output;
         private InputStream input;
         private SecretKey sharedKey;
@@ -285,8 +283,7 @@ public class Server {
                 certFactory = CertificateFactory.getInstance("X.509");
                 
                 cert = (X509Certificate)certFactory.generateCertificate(bis);
-                System.out.println(cert != null);
-                System.out.println("X.509 Certificate Constructed\n");
+                System.out.println("X.509 Certificate Constructed - " + cert != null + "\n");
             }catch( CertificateException e ){
                 e.printStackTrace();
                 System.out.println("X.509 Certificate Not Constructed\n");
