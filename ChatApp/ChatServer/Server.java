@@ -439,14 +439,6 @@ public class Server {
                     //REMOVE USER FROM USER LIST
                 }
             }
-            for (UserClient user : userList) {
-                if (!login.equals(worker.getLogin())) {
-                    worker.send(offLineMsg);
-                }else{
-                    //userList.f
-                    //REMOVE USER FROM USER LIST
-                }
-            }
             clientSocket.close();
         }
     
