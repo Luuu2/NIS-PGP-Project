@@ -466,14 +466,15 @@ public class Server {
         }
     
         private void handleLogoff() throws IOException{
+            server.removeWorker(this);
             System.out.println("User logged off successfully: " + login);
-            String offLineMsg = "offline " + login + " _\n";
+            String offLineMsg = "offline " + login + "\n";
             List<ServerWorker> workerList = server.getWorkerList();
             for (ServerWorker worker : workerList) {
                 worker.send(offLineMsg);
             }
-            server.removeWorker(this);
-            System.out.println( "Remaining workers: " + workerList);
+            
+            System.out.println("Remaining workers: " + workerList.size());
                     
             for (UserClient uClient : userList){
                 if (login.equals(uClient.getUserName())) {
