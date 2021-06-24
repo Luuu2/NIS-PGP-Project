@@ -262,7 +262,9 @@ public class Client {
                 System.out.println("No such algorithm");
             }
 
+
             System.out.println("Received other user's public key");
+            System.out.println("Public Key: "+ otherUserKey != null);
 
             msgReader();
             msgWriter();
