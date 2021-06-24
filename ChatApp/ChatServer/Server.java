@@ -6,7 +6,7 @@ import java.util.Base64;
 import java.util.Hashtable;
 import java.util.List;
 import java.util.Scanner;
-
+import java.util.concurrent.locks.ReentrantLock;
 import java.io.BufferedOutputStream;
 import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
@@ -62,6 +62,7 @@ public class Server {
     private static final String SIGNATURE_ALGORITHM = "SHA256withRSA";
     
     private final int serverPort;
+    private final ReentrantLock lock = new ReentrantLock(true);
 
     private ArrayList<UserClient> userList = new ArrayList<>();
     private ArrayList<ServerWorker> workerList = new ArrayList<>();
@@ -210,10 +211,20 @@ public class Server {
             while (true) {   
                 Socket clientSocket = serverSocket.accept();
                 ServerWorker worker = new ServerWorker(this, clientSocket, sharedKey, sharedIv);
-                System.out.println("New ServerWorker Thread created");
+                
                 //// ADD LOCK
-                workerList.add(worker);
+                lock.lock();
+                try {
+                    workerList.add(worker);
+                } catch (Exception e) {
+                    System.out.println("Error Adding Worker to List");
+                }finally{
+                    lock.unlock();
+                }
+                
+                
                 //// ADD LOCK
+                System.out.println("New ServerWorker Thread created and added to list");
                 worker.start();
             }
         } catch (IOException e) {
@@ -235,7 +246,9 @@ public class Server {
     }
 */
     public void removeWorker(ServerWorker serverWorker) {
+        
         workerList.remove(serverWorker);
+
     }
     public class ServerWorker extends Thread  {
         private final Socket clientSocket;
@@ -435,53 +448,73 @@ public class Server {
             String image = tokens[4]; // cipherRSA
              
             System.out.println("handling image");
+            lock.lock();
             List<ServerWorker> workerList = server.getWorkerList();
-            for (ServerWorker worker : workerList) {
-                if (sendTo.equalsIgnoreCase(worker.getLogin())) {
-                    String outMsg = "img " + login + " " + cipherAES + " " + cipherRSA + " "+ image +"\n";
-                    try {
+            try {
+                for (ServerWorker worker : workerList) {
+                    if (sendTo.equalsIgnoreCase(worker.getLogin())) {
+                        String outMsg = "img " + login + " " + cipherAES + " " + cipherRSA + " "+ image +"\n";
                         worker.send(outMsg);
-                    } catch (IOException e) {
-                        // TODO Auto-generated catch block
-                        e.printStackTrace();
                     }
                 }
+            } catch (Exception e) {
+                e.printStackTrace();
+            } finally {
+                lock.unlock();
             }
+            
         }
     
         // format msg login msg
-        private void handleMessage(String[] tokens) throws IOException {
+        private void handleMessage(String[] tokens) {
             String sendTo = tokens[1]; // reciever
             String cipherAES = tokens[2]; // cipherAES
             String cipherRSA = tokens[3]; // cipherRSA
-    
-            List<ServerWorker> workerList = server.getWorkerList();
-            for (ServerWorker worker : workerList) {
-                if (sendTo.equalsIgnoreCase(worker.getLogin())) {
-                    String outMsg = "msg " + login + " " + cipherAES + " " + cipherRSA + "\n";
-                    System.out.println("Sending message to "+ login);
-                    worker.send(outMsg);
+            lock.lock();
+            try{
+                List<ServerWorker> workerList = server.getWorkerList();
+                for (ServerWorker worker : workerList) {
+                    if (sendTo.equalsIgnoreCase(worker.getLogin())) {
+                        String outMsg = "msg " + login + " " + cipherAES + " " + cipherRSA + "\n";
+                        System.out.println("Sending message to "+ login);
+                        worker.send(outMsg);
+                    }
                 }
-            }
+            } catch(IOException e) {
+                System.out.print("IO Exception: ");
+                e.printStackTrace();
+            } finally{ lock.unlock(); }
         }
     
-        private void handleLogoff() throws IOException{
+        private void handleLogoff() {
             server.removeWorker(this);
             System.out.println("User logged off successfully: " + login);
             String offLineMsg = "offline " + login + "\n";
-            List<ServerWorker> workerList = server.getWorkerList();
-            for (ServerWorker worker : workerList) {
-                worker.send(offLineMsg);
-            }
+            lock.lock();
+            try {
+                List<ServerWorker> workerList = server.getWorkerList();
+                for (ServerWorker worker : workerList) {
+                    worker.send(offLineMsg);
+                }
+            } catch(IOException e) {
+                System.out.print("IO Exception: ");
+                e.printStackTrace();
+            } finally { lock.unlock(); }
+            
             
             System.out.println("Remaining workers: " + workerList.size());
-                    
-            for (UserClient uClient : userList){
-                if (login.equals(uClient.getUserName())) {
-                    userList.remove(uClient);
-                    break;
+            lock.lock();
+            try {
+                for (UserClient uClient : userList){
+                    if (login.equals(uClient.getUserName())) {
+                        userList.remove(uClient);
+                        break;
+                    }
                 }
-            }
+            } catch (Exception e) {
+                e.printStackTrace();
+            } finally { lock.unlock(); }
+            
             System.out.println(login + " connection closed.");
         }
     
@@ -514,48 +547,34 @@ public class Server {
 
                     String onlineMsg = "online: "+login +"\n";
 
-                    List<ServerWorker> workerList = server.getWorkerList();
-                    //server.userList.add(user);
-    
-                    //send current user all other online logins
-                    for(ServerWorker worker: workerList){
-                        if(worker.getLogin() != null){
-                            if(!login.equals(worker.getLogin())){
-                                String msg2 = "online: "+ worker.getLogin() + '\n';
-                                send(msg2);
-                                /*if(worker.getLogin().equals("Alice")){
-                                    System.out.println("Sending Public key to Alice");
-                                    send(keyRing.get("Alice").getEncoded());
-                                    System.out.println("Public Key sent to Alice");
+                    lock.lock();
+                    try {
+                        List<ServerWorker> workerList = server.getWorkerList();
+                        //send current user all other online logins
+                        for(ServerWorker worker: workerList){
+                            if(worker.getLogin() != null){
+                                if(!login.equals(worker.getLogin())){
+                                    String msg2 = "online: "+ worker.getLogin() + '\n';
+                                    send(msg2);
                                 }
-                                else {
-                                    System.out.println("Sending Public Key to Bob");
-                                    send(keyRing.get("Bob").getEncoded());
-                                    System.out.println("Public Key sent to Bob");
-                                }*/
-
                             }
                         }
-                    
-                    }
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    } finally { lock.unlock(); }
 
-                    //send other online users current user's status
-                    for(ServerWorker worker: workerList){
-                        if(!login.equals(worker.getLogin())){
-                            worker.send(onlineMsg);
-                            /*if(worker.getLogin().equals("Alice")){
-                                System.out.println("Sending Public Key to Bob");
-                                send(keyRing.get("Bob").getEncoded());
-                                System.out.println("Public Key sent to Bob");
+                    lock.lock();
+                    try {
+                        List<ServerWorker> workerList = server.getWorkerList();
+                        //send other online users current user's status
+                        for(ServerWorker worker: workerList){
+                            if(!login.equals(worker.getLogin())){
+                                worker.send(onlineMsg);
                             }
-                            else{
-                                System.out.println("Sending certificate to Alice");
-                                send(keyRing.get("Alice").getEncoded());
-                                System.out.println("Certificate sent to Alice");
-                            }*/
                         }
-                    }
-
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    } finally { lock.unlock(); }
                 }
                 else {
                     String msg = "error login\n";
