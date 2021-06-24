@@ -247,6 +247,8 @@ public class Server {
         ObjectOutputStream objectOutputStream;
         private IvParameterSpec sharedIv;
         private DataOutputStream dos;
+
+
         public ServerWorker(Server server, Socket clientSocket, SecretKey key, IvParameterSpec iv) {
             this.server = server;
             this.clientSocket = clientSocket;
@@ -258,6 +260,7 @@ public class Server {
             try {
                 System.out.println("Running HandleClient...");
                 handleClient(); // this method is only ever called when a thread is started
+                clientSocket.close();
             } catch (IOException e) {
                 e.printStackTrace();
             } catch (InterruptedException e) {
@@ -330,7 +333,6 @@ public class Server {
             }
 
             return cert;
-
         }
         
         private void handleClient() throws IOException, InterruptedException {
@@ -361,10 +363,10 @@ public class Server {
     
                 String[] tokens = line.split(" ",3);
                 String cmd = tokens[0];
-                System.out.print("\nCommand by " + tokens[1] + ": ");
+                System.out.print("\nCommand by " + login + ": ");
                 System.out.println(cmd);
                 if (tokens != null && tokens.length > 0) {
-                    System.out.println("Looking at tokens...");
+                    System.out.println("Looking at tokens... " );
                     if ("quit".equalsIgnoreCase(cmd) || "logoff".equalsIgnoreCase(cmd)) {
                         handleLogoff();
                         break;
@@ -372,6 +374,7 @@ public class Server {
                         handleLogin(output, tokens, cert);
                     } else if ("msg".equalsIgnoreCase(cmd)) {
                         String[] msgTokens = line.split(" ", 4);
+                        // msg 
                         handleMessage(msgTokens);
                     } else if ("img".equalsIgnoreCase(cmd)) {
                         String[] imgTokens = line.split(" ", 5);
@@ -462,28 +465,24 @@ public class Server {
             }
         }
     
-        private void handleLogoff() throws IOException {
+        private void handleLogoff() throws IOException{
             server.removeWorker(this);
             System.out.println("User logged off successfully: " + login);
-            String offLineMsg = "Offline " + login + "\n";
+            String offLineMsg = "offline " + login + "\n";
             List<ServerWorker> workerList = server.getWorkerList();
             for (ServerWorker worker : workerList) {
-                if (!login.equals(worker.getLogin())) {
-                    worker.send(offLineMsg);
-                }else{
-                    //userList.f
-                    //REMOVE USER FROM USER LIST
+                worker.send(offLineMsg);
+            }
+            
+            System.out.println("Remaining workers: " + workerList.size());
+                    
+            for (UserClient uClient : userList){
+                if (login.equals(uClient.getUserName())) {
+                    userList.remove(uClient);
+                    break;
                 }
             }
-            for (ServerWorker worker : workerList){
-                if (!login.equals(worker.getLogin())) {
-                    worker.send(offLineMsg);
-                }else{
-                    //userList.f
-                    //REMOVE USER FROM USER LIST
-                }
-            }
-            clientSocket.close();
+            System.out.println(login + " connection closed.");
         }
     
         public String getLogin() {
