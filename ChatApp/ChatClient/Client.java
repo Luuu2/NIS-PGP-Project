@@ -97,10 +97,6 @@ public class Client {
     private Certificate serverCert;
     private PrivateKey privateKey;
 
-    private String cipher;
-    private String receiver;
-    private String sender;
-
     private PublicKey otherUserKey; 
     public Client(String serverName, int serverPort, String userName, String password) {
         this.serverName = serverName;
@@ -234,6 +230,7 @@ public class Client {
         String response = bufferIn.readLine();
         System.out.println("Response Line: " + response);
         if ("ok login".equalsIgnoreCase(response)) {
+            System.out.println("In The Loop");
             /*getKey();
             //this.key = getKey();
             System.out.print("Key Present: ");
@@ -294,6 +291,18 @@ public class Client {
             e.printStackTrace();
         }*/
 
+    }
+
+    public void generateKey() throws NoSuchAlgorithmException { // 256 bit key for 14 rounds
+        KeyGenerator keyGenerator = KeyGenerator.getInstance("AES");
+        keyGenerator.init(256);
+        sharedKey = keyGenerator.generateKey();
+    }
+
+    public void generateIv() { // IV vector should be the same for each client to decrypt/encrypt// reciever
+        byte[] iv = new byte[16];
+        new SecureRandom().nextBytes(iv);
+        sharedIv = new IvParameterSpec(iv);
     }
 
     //send our certificate to server and receive a certificate from the server then verify
@@ -445,9 +454,6 @@ public class Client {
                         } else {
                             System.out.println(response + "\n");
                         }
-                        else {
-                            System.out.println(response+"\n");
-                        }
                     }catch (IOException e) {
                         e.printStackTrace();
                         break;
@@ -493,7 +499,7 @@ public class Client {
                             cipherAES = encryptAES("AES/CBC/PKCS5Padding", encodeString(tokens, receiver), sharedKey,
                                     sharedIv);
                             System.out.println(sharedIv.getIV().length);
-                            cipherRSA = encryptRSA("RSA/ECB/PKCS1Padding", sharedKey, otherUserCert);
+                            cipherRSA = encryptRSA("RSA/ECB/PKCS1Padding", sharedKey, otherUserKey);
                             System.out.println("CipherRSA: " + cipherRSA.getBytes().length);
                             String cmd = "img" + " " + receiver + " " + cipherAES + " " + cipherRSA +" "+ imageName + "\n";
                             System.out.println("writing to server");
@@ -512,7 +518,7 @@ public class Client {
                             bos.close();
                             cipherAES = encryptAES("AES/CBC/PKCS5Padding", encodeText(message, receiver), sharedKey,
                                     sharedIv);
-                            cipherRSA = encryptRSA("RSA/ECB/PKCS1Padding", sharedKey, otherUserCert);
+                            cipherRSA = encryptRSA("RSA/ECB/PKCS1Padding", sharedKey, otherUserKey);
                             String cmd = "msg " + receiver + " " + cipherAES + " " + cipherRSA + "\n";
                             serverOut.write(cmd.getBytes());
                         } catch (Exception e) {
@@ -637,12 +643,12 @@ public class Client {
     }
 
     // RSA encryption + decrypting
-    private String encryptRSA(String algorithm, SecretKey input, Certificate certif) throws NoSuchAlgorithmException,
+    private String encryptRSA(String algorithm, SecretKey input, PublicKey pkey) throws NoSuchAlgorithmException,
             NoSuchPaddingException, InvalidKeyException, IllegalBlockSizeException, BadPaddingException {
 
 
         Cipher cipher = Cipher.getInstance(algorithm, new BouncyCastleProvider());
-        cipher.init(Cipher.ENCRYPT_MODE, certif.getPublicKey());
+        cipher.init(Cipher.ENCRYPT_MODE, pkey);
         byte[] cipherText = cipher.doFinal(input.getEncoded());
  
         return Base64.getEncoder().encodeToString(cipherText);

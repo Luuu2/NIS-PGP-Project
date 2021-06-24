@@ -520,10 +520,6 @@ public class Server {
 
                     List<ServerWorker> workerList = server.getWorkerList();
                     //server.userList.add(user);
-
-                    /*while(workerList.size()<2){
-                        //System.out.println("Waiting for both clients to log on");
-                    }*/
     
                     //send current user all other online logins
                     for(ServerWorker worker: workerList){
