@@ -27,11 +27,12 @@ import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 
 import java.net.Socket;
-
+import java.net.SocketException;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.KeyStore;
 import java.security.MessageDigest;
+import java.security.KeyFactory;
 import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
 import java.security.PublicKey;
@@ -43,6 +44,8 @@ import java.security.cert.X509Certificate;
 import java.security.cert.CertificateFactory;
 import java.security.cert.CertificateException;
 import java.security.cert.CertificateEncodingException;
+import java.security.spec.X509EncodedKeySpec;
+import java.security.spec.InvalidKeySpecException;
 
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 
@@ -57,6 +60,7 @@ import javax.crypto.spec.SecretKeySpec;
 
 import java.awt.image.BufferedImage;
 import javax.imageio.ImageIO;
+
 
 public class Client {
     private static final String BC_PROVIDER = "BC";
@@ -93,19 +97,24 @@ public class Client {
     private Certificate serverCert;
     private PrivateKey privateKey;
 
+    private String cipher;
+    private String receiver;
+    private String sender;
+
+    private PublicKey otherUserKey; 
     public Client(String serverName, int serverPort, String userName, String password) {
         this.serverName = serverName;
         this.serverPort = serverPort;
         this.userName = userName;
         this.password = password;
 
-        String alias = userName.equalsIgnoreCase("Bob") ? "PGP-iBcert" : "PGP-iAcert";
+        String alias = userName.equalsIgnoreCase("Bob") ? "PGP-iBcert":"PGP-iAcert";
         String certfile = alias + ".cer";
-        String ksfile = alias + ".pfx";
+        String ksfile = alias + ".pfx"; 
 
-        try {
+        try{ 
             importKeyPairFromKeystoreFile(ksfile, certfile, alias, "PKCS12");
-        } catch (Exception e) {
+        }catch( Exception e ){
             System.out.print("Error In Importing Key Pair From Keystore File");
             e.printStackTrace();
         }
@@ -116,9 +125,9 @@ public class Client {
         Client client = new Client("localhost", 8818, args[0], args[1]);
         if (client.connect()) {
             System.out.println("Connect successful.");
-            try {
-                client.login();
-            } catch (IOException e) {
+            try{
+                if (!client.login()) throw new IOException();
+            }catch (IOException e) {
                 e.printStackTrace();
                 System.out.println("Error logging in");
             }
@@ -127,17 +136,16 @@ public class Client {
         }
     }
 
-    private void importKeyPairFromKeystoreFile(String fileNameKS, String fileNameC, String alias, String storeType)
-            throws Exception {
+    private void importKeyPairFromKeystoreFile(String fileNameKS, String fileNameC, String alias, String storeType) throws Exception {
         FileInputStream keyStoreOs;
         FileInputStream userCert;
         FileInputStream rootCert;
-        try {
+        try{
             System.out.print("Certificates Files Present check: ");
             keyStoreOs = new FileInputStream(fileNameKS);
-            // System.out.println(keyStoreOs);
+            //System.out.println(keyStoreOs);
             userCert = new FileInputStream(fileNameC);
-            /// System.out.println(userCert);
+            ///System.out.println(userCert);
             rootCert = new FileInputStream("PGP-rcert.cer");
             System.out.println("complete\n");
 
@@ -149,25 +157,21 @@ public class Client {
 
             sslKeyStore.load(keyStoreOs, keyPassword);
             KeyStore.ProtectionParameter entryPassword = new KeyStore.PasswordProtection(keyPassword);
-            KeyStore.PrivateKeyEntry privateKeyEntry = (KeyStore.PrivateKeyEntry) sslKeyStore.getEntry(alias,
-                    entryPassword);
+            KeyStore.PrivateKeyEntry privateKeyEntry = (KeyStore.PrivateKeyEntry)
+                sslKeyStore.getEntry(alias, entryPassword);
             this.privateKey = privateKeyEntry.getPrivateKey();
-            System.out.println((sslKeyStore != null) + "\n");
+            System.out.println( (sslKeyStore != null) + "\n" );
+
+            ///////////////////////////////////////////
 
             // Get Certificates
-            System.out.print("Get Root and" + this.userName + "\'s Certificate");
+            System.out.println("Get Root and" + this.userName + "\'s Certificate");
             CertificateFactory cf = CertificateFactory.getInstance("X.509", BC_PROVIDER);
 
-            // System.out.println("Certification Check");
-            BufferedInputStream bisCert = new BufferedInputStream(userCert);
-            while (bisCert.available() > 0) {
-                System.out.print("User Certificate Present: ");
-                this.certificate = cf.generateCertificate(bisCert);
-                System.out.println(certificate != null);
-            }
-            userCert.close();
+            System.out.print("User Certificate Present: ");
+            this.certificate = privateKeyEntry.getCertificate();
+            System.out.println(certificate != null);
 
-            // System.out.println("Root Certification Check");
             BufferedInputStream bisCertR = new BufferedInputStream(rootCert);
             while (bisCertR.available() > 0) {
                 System.out.print("Root Certificate Present: ");
@@ -177,19 +181,20 @@ public class Client {
             rootCert.close();
             System.out.print("Certificates Retrieved");
 
-        } catch (FileNotFoundException e) {
-            System.out.println("File Input Stream Error");
-            e.printStackTrace();
+        }catch(FileNotFoundException e){
+            System.out.println("\nFile Input Stream Error");
+            //e.printStackTrace();
             System.out.println("Exiting Program...");
             System.exit(0);
-        } catch (Exception e) {
-            System.out.println("Kubird!");
-            e.printStackTrace();
+        }catch(Exception e){
+            System.out.println("\nLogin Details Incorrect.");
+            //e.printStackTrace();
+            System.exit(0);
         }
     }
 
-    public boolean connect() {
-        try {
+    public boolean connect(){
+        try{
             this.socket = new Socket(serverName, serverPort);
             System.out.println("Connected to server");
             this.serverOut = socket.getOutputStream();
@@ -200,7 +205,7 @@ public class Client {
             this.scanner = new Scanner(System.in);
             return true;
 
-        } catch (Exception e) {
+        }catch (Exception e) {
             System.out.println("Unable to connect");
             e.printStackTrace();
         }
@@ -209,26 +214,54 @@ public class Client {
 
     private boolean login() throws IOException, ClassNotFoundException {
         // Certificaition Step
-        try {
-            handleCertification();
-        } catch (InterruptedException e) {
+        System.out.println("Certification Step - Beginning");
+        boolean loginUser = false;
+        try{
+            loginUser = handleCertification();
+        }catch (InterruptedException e){
             e.printStackTrace();
         }
-        // Certificaition Step
-        String cmd = "login " + userName + " " + password + "\n";
+        // If Handle Certification Failed for whatever reason return false
+        if(!loginUser){
+            System.out.println("Certification Step - Failed");
+            return loginUser;
+        }
+        System.out.println("Certification Step - Complete");
+        // Certificaition Step - END
+
+        String cmd = "login "+ userName + " "+ password+"\n";
         serverOut.write(cmd.getBytes());
         String response = bufferIn.readLine();
         System.out.println("Response Line: " + response);
         if ("ok login".equalsIgnoreCase(response)) {
-            /*
-             * getKey(); //this.key = getKey(); System.out.println("got key");
-             * System.out.println(key); getIv(); System.out.println("got iv");
-             * System.out.println(iv);
-             */
-            String res = bufferIn.readLine();
-            System.out.println(res);
-            receiveCert();
-            System.out.println(otherUserCert.toString());
+            /*getKey();
+            //this.key = getKey();
+            System.out.print("Key Present: ");
+            System.out.println(key != null);
+            getIv();
+            System.out.print("IV Present: ");
+            System.out.println(iv != null);*/
+            
+            //Receive otherUserKey
+            while(serverIn.available()==0){
+                //
+            }
+            BufferedInputStream getkey = new BufferedInputStream(serverIn);
+            int keySize = getkey.available();
+            System.out.println("Public Key Size: "+ keySize);
+            byte[] key = new byte[keySize];
+            getkey.read(key, 0, keySize);
+            try {
+                otherUserKey = KeyFactory.getInstance("RSA").generatePublic(new X509EncodedKeySpec(key));
+            } catch (InvalidKeySpecException e) {
+                System.out.println("Invalid key spec");
+            } catch (NoSuchAlgorithmException e) {
+                System.out.println("No such algorithm");
+            }
+
+            System.out.println("Public Key: "+ otherUserKey.toString());
+
+            //System.out.println(otherUserCert.toString());
             msgReader();
             msgWriter();
             return true;
@@ -237,122 +270,133 @@ public class Client {
         }
     }
 
-    private void receiveCert() {
-        InputStream input = this.serverIn;
-
-        try {
-            BufferedInputStream bis = new BufferedInputStream(input);
+    private void receiveCert(){
+        //InputStream input = this.serverIn;
+        
+        try{
+            BufferedInputStream bis = new BufferedInputStream(serverIn);
             System.out.println(bis.toString());
             CertificateFactory cf = CertificateFactory.getInstance("X.509");
-            // System.out.println(otherUserCert.toString());
+            System.out.println("CF created.");
+            //System.out.println(otherUserCert.toString());
             otherUserCert = cf.generateCertificate(bis);
-            // System.out.println(otherUserCert.toString());
+            //System.out.println(otherUserCert.toString());
             System.out.println(otherUserCert != null);
             System.out.println("X.509 Certificate Constructed");
-        } catch (CertificateException e) {
+        }catch( CertificateException e ){
             System.out.println("X.509 Certificate Not Constructed");
             e.printStackTrace();
-        }
+        } 
+
+        /*try {
+            input.close();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }*/
+
     }
 
-    // should be verifying the other client's certificate not the server's
-    private void handleCertification() throws IOException, InterruptedException {
+    //send our certificate to server and receive a certificate from the server then verify
+    private boolean handleCertification() throws IOException, InterruptedException{
         System.out.println("Sending certificate to Server");
         InputStream input = this.serverIn;
         OutputStream output = this.serverOut;
 
-        //////////////////////////////////////
         /**
-         * Sending user the server X509 certificate
-         **/
+         * Sending user the server X509 certificate 
+        **/
         // Convert CERT into byte[]
         byte[] certificateBytes = null;
-        try {
-            System.out.println("Show Certification");
-            System.out.println(certificate);
+        try{
+            System.out.print("Certificate Present: ");
+            System.out.println(certificate != null);
             certificateBytes = certificate.getEncoded();
-        } catch (CertificateEncodingException e) {
+        }catch( CertificateEncodingException e ){
             System.out.println("Certificate Encoding Exception error");
             e.printStackTrace();
-        } catch (Exception e) {
+        }catch( Exception e ){
             System.out.println("I don't know");
             e.printStackTrace();
         }
-
-        if (certificateBytes == null) {
+        
+        if(certificateBytes == null){
             System.out.println("Not Sending Certificate Bytes");
-        } else {
+        }else {
             System.out.println("Sending Certificate Bytes");
-            output.write(certificateBytes);
+            output.write( certificateBytes );
         }
 
         //////////////////////////////////////////
-        CertificateFactory certFactory = null;
+        System.out.println("\nReceiving certificate from Server");
         Certificate cert = null; // server certificate
-
         /**
-         * Verifying server the X509 certificate
-         **/
-        try {
+         * Verifying server the X509 certificate 
+        **/
+        try{
             BufferedInputStream bis = new BufferedInputStream(input);
-            System.out.print("Check Server Certificate: ");
-            System.out.println(cert);
-            certFactory = CertificateFactory.getInstance("X.509");
-
-            cert = certFactory.generateCertificate(bis);
-            System.out.println(cert);
+            System.out.print("Server Certificate Present: ");
+            CertificateFactory cf = CertificateFactory.getInstance("X.509");
+            cert = cf.generateCertificate(bis);
+            
+            System.out.println(cert != null);
             System.out.println("X.509 Certificate Constructed");
-        } catch (CertificateException e) {
+        }catch( CertificateException e ){
             System.out.println("X.509 Certificate Not Constructed");
             e.printStackTrace();
-        }
+        } 
 
+        /////////////////////////////////////////
+        //Need to have verified condition in the code to client prevent 
+        //continuing
+        System.out.print("\nVerification of Server Certificate: ");
         /**
-         * Verifying server the X509 certificate
-         **/
-        try {
-            System.out.println("Verification of User Certificate");
-            cert.verify(rootCertificate.getPublicKey(), Security.getProvider(BC_PROVIDER));
+         * Verifying server the X509 certificate 
+        **/
+        try{
+            cert.verify(rootCertificate.getPublicKey(), Security.getProvider(BC_PROVIDER)); 
+            System.out.println("complete");
             serverCert = cert;
-        } catch (CertificateException | NoSuchAlgorithmException | InvalidKeyException e) {
-            // handle wrong algos
-            System.out.print("handle wrong algorithms");
-        } catch (SignatureException ex) {
-            // signature validation error
-            System.out.print("signature validation error");
+            System.out.println(serverCert.toString());
+            return true;
+        }catch (NoSuchAlgorithmException | InvalidKeyException e) {
+            //handle wrong algos
+            System.out.print("Handle wrong algorithms or Invalid key");
+            e.printStackTrace();
+        }catch (CertificateException e) {
+            //certificate encoding error
+            System.out.print("On encoding errors");
+            e.printStackTrace();
+        }catch (SignatureException e) {
+            //signature validation error
+            System.out.print("Signature validation error");
+            e.printStackTrace();
+        }catch (Exception e) {
+            System.out.print("Other error");
+            e.printStackTrace();
         }
-
+        System.out.println("failed\n");
+        return false;
     }
 
-    public void generateKey() throws NoSuchAlgorithmException { // 256 bit key for 14 rounds
-        KeyGenerator keyGenerator = KeyGenerator.getInstance("AES");
-        keyGenerator.init(256);
-        sharedKey = keyGenerator.generateKey();
-    }
-
-    public void generateIv() { // IV vector should be the same for each client to decrypt/encrypt// reciever
-        byte[] iv = new byte[16];
-        new SecureRandom().nextBytes(iv);
-        sharedIv = new IvParameterSpec(iv);
-    }
-
-    private void msgReader() {
-        Thread t = new Thread() {
-            public void run() {
-                while (true) {
-                    try {
+    private void msgReader(){
+        Thread t = new Thread(){
+            public void run(){
+                while(true){
+                    try{
                         String response = bufferIn.readLine();
                         String[] tokens = response.split(" ", 3);
-                        // tokens[0] == msg keyword for server, tokens[2] == message body
+                        // tokens[0] == msg keyword for server
+                        // tokens[2] == message body
                         if (userName.equalsIgnoreCase("Alice")) {
                             sender = "Bob";
                         } else {
                             sender = "Alice";
                         }
                         if (tokens[0].equalsIgnoreCase("online")) {
-                            // System.out.println("inside condition 1");
                             System.out.println(sender + " is online\n");
-                        } else if (tokens[0].equalsIgnoreCase("Offline")) {
+                            //System.out.println(otherUserCert.toString());
+                            
+                        } else if (tokens[0].equalsIgnoreCase("offline")) {
                             System.out.println(sender + " logged off\n");
                         } else if (tokens[0].equalsIgnoreCase("msg")) {
 
@@ -398,20 +442,16 @@ public class Client {
                             } catch (Exception e) {
                                 e.printStackTrace();
                             }
-                        } else if (tokens[0].equalsIgnoreCase("Offline")) {
-                            System.out.println(sender + " logged off\n");
-                        } else if (tokens[0].equalsIgnoreCase("msg")) {
-                            System.out.println(sender + ": " + tokens[2] + "\n");
-                        } else if (tokens[0].equalsIgnoreCase("img")) {
-                            System.out.println(sender + ": " + tokens[2] + "\n");
                         } else {
                             System.out.println(response + "\n");
                         }
-                    } catch (IOException e) {
+                        else {
+                            System.out.println(response+"\n");
+                        }
+                    }catch (IOException e) {
                         e.printStackTrace();
                         break;
                     }
-
                 }
             }
         };
@@ -428,13 +468,14 @@ public class Client {
             public void run() {
                 boolean online = true;
                 while (online == true) {
+                    System.out.println(userName + "'s writer is alive");
                     String message = scanner.nextLine();
-                    String[] tokens = message.split(" ", 3);
-                    if (message.equalsIgnoreCase("quit") || message.equalsIgnoreCase("logoff")) {
+                    String [] tokens = message.split(" ", 3);
+                    if(message.equalsIgnoreCase("quit") || message.equalsIgnoreCase("logoff")){
                         String cmd = "quit";
-                        try {
+                        try{
                             serverOut.write(cmd.getBytes());
-                        } catch (IOException e) {
+                        }catch (IOException e) {
                             e.printStackTrace();
                         }
                         break;
@@ -458,8 +499,7 @@ public class Client {
                             System.out.println("writing to server");
                             serverOut.write(cmd.getBytes());
                             System.out.println("wrote to server");
-
-                        } catch (Exception e) {
+                        }catch (Exception e) {
                             e.printStackTrace();
                         }
                     } else {
