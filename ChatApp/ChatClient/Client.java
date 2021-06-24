@@ -96,8 +96,9 @@ public class Client {
     private Certificate otherUserCert = null;
     private Certificate serverCert;
     private PrivateKey privateKey;
+    private PublicKey otherUserKey;
 
-    private PublicKey otherUserKey; 
+
     public Client(String serverName, int serverPort, String userName, String password) {
         this.serverName = serverName;
         this.serverPort = serverPort;
@@ -156,7 +157,7 @@ public class Client {
             KeyStore.PrivateKeyEntry privateKeyEntry = (KeyStore.PrivateKeyEntry)
                 sslKeyStore.getEntry(alias, entryPassword);
             this.privateKey = privateKeyEntry.getPrivateKey();
-            System.out.println( (sslKeyStore != null) + "\n" );
+            System.out.println("Keystore present: " + (sslKeyStore != null) + "\n" );
 
             ///////////////////////////////////////////
 
@@ -256,7 +257,7 @@ public class Client {
                 System.out.println("No such algorithm");
             }
 
-            System.out.println("Public Key: "+ otherUserKey.toString());
+            System.out.println("Public Key: "+ otherUserKey != null);
 
             //System.out.println(otherUserCert.toString());
             msgReader();
@@ -386,7 +387,7 @@ public class Client {
     }
 
     private void msgReader(){
-        Thread t = new Thread(){
+        Thread reader = new Thread(){
             public void run(){
                 while(true){
                     try{
@@ -394,6 +395,7 @@ public class Client {
                         String[] tokens = response.split(" ", 3);
                         // tokens[0] == msg keyword for server
                         // tokens[2] == message body
+                        
                         if (userName.equalsIgnoreCase("Alice")) {
                             sender = "Bob";
                         } else {
@@ -452,6 +454,7 @@ public class Client {
                         } else {
                             System.out.println(response + "\n");
                         }
+                        System.out.println("In here");
                     }catch (IOException e) {
                         e.printStackTrace();
                         break;
@@ -459,7 +462,7 @@ public class Client {
                 }
             }
         };
-        t.start();
+        reader.start();
     }
 
     private void msgWriter() {
@@ -468,10 +471,9 @@ public class Client {
         } else {
             receiver = "Alice";
         }
-        Thread t = new Thread() {
+        Thread writer = new Thread() {
             public void run() {
-                boolean online = true;
-                while (online == true) {
+                while (true) {
                     System.out.println(userName + "'s writer is alive");
                     String message = scanner.nextLine();
                     String [] tokens = message.split(" ", 3);
@@ -479,10 +481,16 @@ public class Client {
                         String cmd = "quit";
                         try{
                             serverOut.write(cmd.getBytes());
+                            //System.exit(0);
                         }catch (IOException e) {
                             e.printStackTrace();
                         }
-                        break;
+                        try {
+                            socket.close();
+                        } catch (IOException e) {
+                            System.out.println("Socket closed");
+                        }
+                        System.exit(0);
                     } else if (tokens[0].equalsIgnoreCase("img")) {
                         try {
                             generateKey();
@@ -524,9 +532,10 @@ public class Client {
                         }
                     }
                 }
+                
             }
         };
-        t.start();
+        writer.start();
     }
 
     /*
