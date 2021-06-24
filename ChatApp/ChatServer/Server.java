@@ -24,7 +24,7 @@ import java.io.BufferedInputStream;
 import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
-
+import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 
@@ -74,6 +74,7 @@ public class Server {
     private Certificate BobCert; 
     private PrivateKey privateKey;
     private Hashtable<String, PublicKey> keyRing;
+    static InetAddress addr;
  
     public Server(int serverPort) {
         this.serverPort = serverPort;
@@ -92,6 +93,11 @@ public class Server {
         Security.addProvider(new BouncyCastleProvider());
         int port = 8818;
         Server server = new Server(port);
+        if(args.length==0){
+            addr = InetAddress.getByName("localhost");
+        }else{
+            addr = InetAddress.getByName(args[0]);
+        }
         try{
             server.run();
         } catch (Exception e){
@@ -205,7 +211,7 @@ public class Server {
             e1.printStackTrace();
         }*/
         
-        try (ServerSocket serverSocket = new ServerSocket(serverPort)) {
+        try (ServerSocket serverSocket = new ServerSocket(serverPort, 0, addr)) {
             System.out.println("Server is alive\n");
             while (true) {   
                 Socket clientSocket = serverSocket.accept();
