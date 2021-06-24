@@ -311,7 +311,8 @@ public class Server {
     
                 String[] tokens = line.split(" ",3);
                 String cmd = tokens[0];
-                System.out.println("In handle client...");
+                System.out.print("\nCommand by " + tokens[1] + ": ");
+                //System.out.println(cmd);
                 if (tokens != null && tokens.length > 0) {
                     System.out.println("Looking at tokens...");
                     if ("quit".equalsIgnoreCase(cmd) || "logoff".equalsIgnoreCase(cmd)) {
@@ -324,7 +325,7 @@ public class Server {
                         String[] msgTokens = line.split(" ", 4);
                         handleMessage(msgTokens);
                     } else if ("img".equalsIgnoreCase(cmd)) {
-                        String[] imgTokens = line.split(" ", 4);
+                        String[] imgTokens = line.split(" ", 5);
                         handleImage(imgTokens);
                     } else {
                         String msg = "Unknown " + cmd + "\n";
@@ -377,12 +378,13 @@ public class Server {
             String sendTo = tokens[1]; // reciever
             String cipherAES = tokens[2]; // cipherAES
             String cipherRSA = tokens[3]; // cipherRSA
+            String image = tokens[4]; // cipherRSA
              
             System.out.println("handling image");
             List<ServerWorker> workerList = server.getWorkerList();
             for (ServerWorker worker : workerList) {
                 if (sendTo.equalsIgnoreCase(worker.getLogin())) {
-                    String outMsg = "img " + login + " " + cipherAES + " " + cipherRSA + "\n";
+                    String outMsg = "img " + login + " " + cipherAES + " " + cipherRSA + " "+ image +"\n";
                     try {
                         worker.send(outMsg);
                     } catch (IOException e) {
@@ -402,7 +404,7 @@ public class Server {
             List<ServerWorker> workerList = server.getWorkerList();
             for (ServerWorker worker : workerList) {
                 if (sendTo.equalsIgnoreCase(worker.getLogin())) {
-                    String outMsg = "img " + login + " " + cipherAES + " " + cipherRSA + "\n";
+                    String outMsg = "msg " + login + " " + cipherAES + " " + cipherRSA + "\n";
                     worker.send(outMsg);
                 }
             }
@@ -447,9 +449,9 @@ public class Server {
                     String onlineMsg = "online: "+login +"\n";
                     List<ServerWorker> workerList = server.getWorkerList();
                     server.userList.add(user);
-                    while(workerList.size()<2){
+                   /* while(workerList.size()<2){
                         //System.out.println("Waiting for both clients to log on");
-                    }
+                    }*/
     
                     //send current user all other online logins
                     for(ServerWorker worker: workerList){
@@ -464,7 +466,7 @@ public class Server {
                                 }
                                 else {
                                     //System.out.println(AliceCert.toString());
-                                    sendCert(BobCert);
+                                   sendCert(BobCert);
                                 }
 
                             }
