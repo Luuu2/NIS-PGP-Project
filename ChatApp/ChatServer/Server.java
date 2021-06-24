@@ -185,26 +185,26 @@ public class Server {
     }
 
     public void run() throws NoSuchAlgorithmException {
-        generateKey();
-        generateIv();
+        //generateKey();
+        //generateIv();
         ObjectOutputStream oos;
         FileOutputStream fos;
-        try {
-            oos = new ObjectOutputStream(new FileOutputStream("Key.txt"));
-            oos.writeObject(sharedKey);
-            oos.close();
-            fos = new FileOutputStream(new File("IV.txt"));
-            BufferedOutputStream bos = new BufferedOutputStream(fos);
-            bos.write(sharedIv.getIV());
-            bos.close();
-        } catch (FileNotFoundException e) {
+       /* try {
+            //oos = new ObjectOutputStream(new FileOutputStream("Key.txt"));
+            //oos.writeObject(sharedKey);
+            //oos.close();
+            //fos = new FileOutputStream(new File("IV.txt"));
+            //BufferedOutputStream bos = new BufferedOutputStream(fos);
+           // bos.write(sharedIv.getIV());
+            //bos.close();
+        } catch (FileNotFoundException e1) {
             // TODO Auto-generated catch block
             e.printStackTrace();
         } catch (IOException e) {
             // TODO Auto-generated catch block
-            e.printStackTrace();
-        }
-
+            e1.printStackTrace();
+        }*/
+        
         try (ServerSocket serverSocket = new ServerSocket(serverPort)) {
             System.out.println("Server is alive\n");
             while (true) {   
@@ -221,7 +221,7 @@ public class Server {
             e.printStackTrace();
         }
     }
-
+/*
     public void generateKey() throws NoSuchAlgorithmException { // 256 bit key for 14 rounds
         KeyGenerator keyGenerator = KeyGenerator.getInstance("AES");
         keyGenerator.init(256);
@@ -233,7 +233,7 @@ public class Server {
         new SecureRandom().nextBytes(iv);
         sharedIv = new IvParameterSpec(iv);
     }
-
+*/
     public void removeWorker(ServerWorker serverWorker) {
         workerList.remove(serverWorker);
     }
@@ -368,17 +368,14 @@ public class Server {
                     if ("quit".equalsIgnoreCase(cmd) || "logoff".equalsIgnoreCase(cmd)) {
                         handleLogoff();
                         break;
-
                     } else if ("login".equalsIgnoreCase(cmd)) {
-                        //System.out.println(sharedKey);
-                        //System.out.println(sharedIv);
                         handleLogin(output, tokens, cert);
                     } else if ("msg".equalsIgnoreCase(cmd)) {
-                        String[] msgTokens = line.split(" ", 3);
+                        String[] msgTokens = line.split(" ", 4);
                         handleMessage(msgTokens);
                     } else if ("img".equalsIgnoreCase(cmd)) {
-                        //String[] imgTokens = line.split(" ", 3);
-                        handleImage(tokens);
+                        String[] imgTokens = line.split(" ", 5);
+                        handleImage(imgTokens);
                     } else {
                         String msg = "Unknown " + cmd + "\n";
                         output.write(msg.getBytes());
@@ -386,9 +383,10 @@ public class Server {
                 }
             }
         }
-    
+    /*
         public void generateKey(String name) throws NoSuchAlgorithmException { // 256 bit key for 14 rounds
     
+        public void generateKey(String name) throws NoSuchAlgorithmException { // 256 bit key for 14 rounds
             String sendTo = name; // reciever
             List<ServerWorker> workerList = server.getWorkerList();
             for (ServerWorker worker : workerList) {
@@ -404,7 +402,7 @@ public class Server {
             }
     
         }
-       
+    
         private void sendKey(SecretKey key) throws IOException {
             if (login != null) {
                 dos.write(key.getEncoded());
@@ -426,17 +424,18 @@ public class Server {
                 }
             }
         }
-    
+    */
         private void handleImage(String[] tokens) {
-            String sendTo = tokens[1];
-            String cipher = tokens[2];
-            System.out.println("Handling image");
-            System.out.println(sendTo);
-            System.out.println(cipher);
+            String sendTo = tokens[1]; // reciever
+            String cipherAES = tokens[2]; // cipherAES
+            String cipherRSA = tokens[3]; // cipherRSA
+            String image = tokens[4]; // cipherRSA
+             
+            System.out.println("handling image");
             List<ServerWorker> workerList = server.getWorkerList();
             for (ServerWorker worker : workerList) {
                 if (sendTo.equalsIgnoreCase(worker.getLogin())) {
-                    String outMsg = "img " + login + " " + cipher + "\n";
+                    String outMsg = "img " + login + " " + cipherAES + " " + cipherRSA + " "+ image +"\n";
                     try {
                         worker.send(outMsg);
                     } catch (IOException e) {
@@ -449,13 +448,14 @@ public class Server {
     
         // format msg login msg
         private void handleMessage(String[] tokens) throws IOException {
-            String sendTo = tokens[1];
-            String body = tokens[2];
+            String sendTo = tokens[1]; // reciever
+            String cipherAES = tokens[2]; // cipherAES
+            String cipherRSA = tokens[3]; // cipherRSA
     
             List<ServerWorker> workerList = server.getWorkerList();
             for (ServerWorker worker : workerList) {
                 if (sendTo.equalsIgnoreCase(worker.getLogin())) {
-                    String outMsg = "msg " + login + " " + body + "\n";
+                    String outMsg = "msg " + login + " " + cipherAES + " " + cipherRSA + "\n";
                     System.out.println("Sending message to "+ login);
                     worker.send(outMsg);
                 }
@@ -517,10 +517,6 @@ public class Server {
 
                     List<ServerWorker> workerList = server.getWorkerList();
                     //server.userList.add(user);
-
-                    /*while(workerList.size()<2){
-                        //System.out.println("Waiting for both clients to log on");
-                    }*/
     
                     //send current user all other online logins
                     for(ServerWorker worker: workerList){
