@@ -38,6 +38,7 @@ import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.security.Security;
+import java.security.Signature;
 import java.security.SecureRandom;
 import java.security.SignatureException;
 import java.security.cert.Certificate;
@@ -119,7 +120,7 @@ public class Client {
         }
     }
 
-    public static void main(String[] args) throws ClassNotFoundException {
+    public static void main(String[] args) throws Exception {
         Security.addProvider(new BouncyCastleProvider());
         Boolean isLocal = true;
         Client client;
@@ -223,7 +224,7 @@ public class Client {
         return false;
     }
 
-    private boolean login() throws IOException, ClassNotFoundException {      
+    private boolean login() throws Exception {      
         // Certificaition Step
         System.out.println("Certification Step - Beginning");
         boolean loginUser = false;
@@ -254,8 +255,9 @@ public class Client {
             int keySize = getKey.available();
             byte[] key = new byte[294];
             getKey.read(key, 0, 294);
+            String signature =" ";
             try {
-                otherUserKey = KeyFactory.getInstance("RSA").generatePublic(new X509EncodedKeySpec(key));
+                otherUserKey = KeyFactory.getInstance("RSA", BC_PROVIDER).generatePublic(new X509EncodedKeySpec(key));
             } catch (InvalidKeySpecException e) {
                 System.out.println("Invalid key spec");
             } catch (NoSuchAlgorithmException e) {
@@ -266,8 +268,35 @@ public class Client {
             System.out.println("Received other user's public key");
             System.out.println("Public Key: "+ otherUserKey != null);
 
+            //System.out.println("Public Key: "+ otherUserKey.toString());
+            try{
+                if (userName.equalsIgnoreCase("Alice")){
+                    dis = new DataInputStream(new FileInputStream(new File("../ChatServer/bSig.txt")));
+                    //FileInputStream fis = new FileInputStream("../ChatServer/aSig.txt");
+                    byte [] sigBytes= dis.readAllBytes();
+                    signature = new String(sigBytes);
+                }
+                else{
+                    dis = new DataInputStream(new FileInputStream(new File("../ChatServer/aSig.txt")));
+                    //FileInputStream fis = new FileInputStream("../ChatServer/bSig.txt");
+                    byte [] sigBytes= dis.readAllBytes();
+                    signature = new String(sigBytes);
+                }
+
+            }catch(Exception e){
+                e.printStackTrace();
+            }
+            if (verify(otherUserKey.toString(),signature,serverCert.getPublicKey())){
+               System.out.println("signature verified");
+            }
+            else{
+                System.out.println("Alice/Bob  public key was not verified to be from the server");
+            }
             msgReader();
             msgWriter();
+            //System.out.println(otherUserCert.toString());
+            //msgReader();
+            //msgWriter();
             return true;
         } else {
             return false;
@@ -545,17 +574,19 @@ public class Client {
     }
 
     private String encodeString(String[] tokens, String receiver) throws Exception { // tokens format:
-                                                                                     // [img,caption,file]
+        // [img,caption,file]
         String caption = tokens[1];
-        // System.out.println(caption);
-        File f = new File("../SendingImages/"+imageName); // file to be taken in (image path)
+        //System.out.println(caption);
+        File f = new File("../SendingImages/"+tokens[2]); // file to be taken in (image path)
         FileInputStream fis = new FileInputStream(f); // taking in file
         System.out.println("Still sending to server....");
         byte imageData[] = new byte[(int) f.length()];
         fis.read(imageData);
         String base64Image = Base64.getEncoder().encodeToString(imageData);
+
         String hashout = sha256(base64Image + "|" + caption);
-        String encodedImgCap = compress(base64Image + "|" + caption + "|" + hashout);
+        String signature = sign(hashout,privateKey);
+        String encodedImgCap = compress(base64Image + "|" + caption + "|" + hashout+ "|"+ signature);
         return encodedImgCap;
     }
 
@@ -567,22 +598,23 @@ public class Client {
                                                                                                    // file
                                                                                                    // will be saved
         try {
-            String[] captionHash = new String(tokens[1]).split(Pattern.quote("|"), 2);
-
-            // calculating hash
-            String hashin = sha256(tokens[0] + "|" + captionHash[0]);
-            if (captionHash[1].equalsIgnoreCase(hashin)) {
+            String[] captionHashSign = new String(tokens[1]).split(Pattern.quote("|"), 2);
+            
+            //calculating hash
+            String hashin = sha256(tokens[0]+"|"+captionHashSign[0]);
+            String signature= captionHashSign[2];
+            
+            if (captionHashSign[1].equalsIgnoreCase(hashin) && verify(hashin, signature,otherUserKey)) {
                 String file = new String(tokens[0]).replaceAll(" +", "+");
                 byte[] b = Base64.getDecoder().decode(file);
-                System.out.println("Recieving from server...");
                 fos.write(b); // write bytes to new file
                 //System.out.println("Received!");
                 System.out.println("Image received from: "+ sender);
                 System.out.println("Image filename: " + imageName);
-                System.out.println("Image caption: " +  captionHash[0]);
+                System.out.println("Image caption: " +  captionHashSign[0]);
                 
             } else {
-                System.out.println("Confidentiality breached!");
+                System.out.println("Confidentiality breached! Could not receive file because it has been compromised.");
             }
         } catch (Exception e) {
             e.printStackTrace();
@@ -704,6 +736,30 @@ public class Client {
         bis.close();
         return sb.toString();
     }
+    //Method for signing (Integrity)
+    public static String sign(String plainText, PrivateKey privateKey) throws Exception {
+        Signature privateSignature = Signature.getInstance("SHA256withRSA");
+        privateSignature.initSign(privateKey);
+        privateSignature.update(plainText.getBytes(StandardCharsets.UTF_8));
+    
+        byte[] signature = privateSignature.sign();
+    
+        return Base64.getEncoder().encodeToString(signature);
+    }
+
+
+    //Verify method for signing
+    public static boolean verify(String plainText, String signature, PublicKey publicKey) throws Exception {
+        Signature publicSignature = Signature.getInstance("SHA256withRSA");
+        publicSignature.initVerify(publicKey);
+        publicSignature.update(plainText.getBytes(StandardCharsets.UTF_8));
+    
+        byte[] signatureBytes = Base64.getDecoder().decode(signature);
+    
+        return publicSignature.verify(signatureBytes);
+    }
+
+
 
 }
 
