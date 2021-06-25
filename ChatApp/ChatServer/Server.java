@@ -28,7 +28,7 @@ import java.nio.file.Files;
 import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
-
+import java.net.UnknownHostException;
 import java.security.InvalidKeyException;
 import java.security.KeyStore;
 import java.security.MessageDigest;
@@ -95,11 +95,17 @@ public class Server {
         Security.addProvider(new BouncyCastleProvider());
         int port = 8818;
         Server server = new Server(port);
-        if(args.length==0){
-            addr = InetAddress.getByName("localhost");
-        }else{
-            addr = InetAddress.getByName(args[0]);
+        try {
+            if(args.length==0){
+                addr = InetAddress.getByName("localhost");
+            }else{
+                addr = InetAddress.getByName(args[0]);
+            }
+        } catch (UnknownHostException e) {
+            System.out.println("Unknown Host Error");
+            e.printStackTrace();
         }
+        
         try{
             server.run();
         } catch (Exception e){
