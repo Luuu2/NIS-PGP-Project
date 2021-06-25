@@ -1,11 +1,8 @@
 To Run via command line: 
 server: java ChatServer.Server
-alice: java ChatClient.Client Alice Alice
-bob: java ChatClient.Client Bob Bob
+alice: java ChatClient.Client Alice Apass
+bob: java ChatClient.Client Bob Bpass
 
-To compile via command line: 
-javac -d . *.java within parent file
-
-To compile via command line using the BouncyCastle .jar file from within the respective folders (CAServer, ChatSever, ClientServer)
+To compile via command line using the BouncyCastle .jar file from within the respective folders (ChatSever, ClientServer)
 javac -cp '../lib/*' <filename>.java 
 java -cp '../lib/*' <filename>.java 
