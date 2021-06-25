@@ -63,7 +63,6 @@ import javax.crypto.spec.SecretKeySpec;
 import java.awt.image.BufferedImage;
 import javax.imageio.ImageIO;
 
-
 public class Client {
     private static final String BC_PROVIDER = "BC";
     private static final String KEY_ALGORITHM = "RSA";
@@ -108,13 +107,13 @@ public class Client {
         this.password = password;
         this.online = true;
 
-        String alias = userName.equalsIgnoreCase("Bob") ? "PGP-iBcert":"PGP-iAcert";
+        String alias = userName.equalsIgnoreCase("Bob") ? "PGP-iBcert" : "PGP-iAcert";
         String certfile = alias + ".cer";
-        String ksfile = alias + ".pfx"; 
+        String ksfile = alias + ".pfx";
 
-        try{ 
+        try {
             importKeyPairFromKeystoreFile(ksfile, certfile, alias, "PKCS12");
-        }catch( Exception e ){
+        } catch (Exception e) {
             System.out.print("Error In Importing Key Pair From Keystore File");
             e.printStackTrace();
         }
@@ -122,6 +121,7 @@ public class Client {
 
     /**
      * Main method
+     * 
      * @param args
      * @throws Exception
      */
@@ -129,17 +129,18 @@ public class Client {
         Security.addProvider(new BouncyCastleProvider());
         Boolean isLocal = true;
         Client client;
-        if(args.length==2){
+        if (args.length == 2) {
             client = new Client("localhost", 8818, args[0], args[1]);
-        }else{
+        } else {
             client = new Client(args[2], 8818, args[0], args[1]);
             isLocal = false;
         }
         if (client.connect(isLocal)) {
             System.out.println("Connect successful.");
-            try{
-                if (!client.login()) throw new IOException();
-            }catch (IOException e) {
+            try {
+                if (!client.login())
+                    throw new IOException();
+            } catch (IOException e) {
                 e.printStackTrace();
                 System.out.println("Error logging in");
             }
@@ -151,16 +152,17 @@ public class Client {
     /**
      * Import key stores and local certificates from files
      * 
-     * @param fileNameKS - key store file name with user certificates 
-     * @param fileNameC - root certificate file name
-     * @param alias - name of certificate holder
-     * @param storeType 
+     * @param fileNameKS - key store file name with user certificates
+     * @param fileNameC  - root certificate file name
+     * @param alias      - name of certificate holder
+     * @param storeType
      * @throws Exception
      */
-    private void importKeyPairFromKeystoreFile(String fileNameKS, String fileNameC, String alias, String storeType) throws Exception {
+    private void importKeyPairFromKeystoreFile(String fileNameKS, String fileNameC, String alias, String storeType)
+            throws Exception {
         FileInputStream keyStoreOs;
         FileInputStream rootCert;
-        try{
+        try {
             System.out.print("Certificates Files Present check: ");
             keyStoreOs = new FileInputStream(fileNameKS);
             rootCert = new FileInputStream("PGP-rcert.cer");
@@ -174,10 +176,10 @@ public class Client {
 
             sslKeyStore.load(keyStoreOs, keyPassword);
             KeyStore.ProtectionParameter entryPassword = new KeyStore.PasswordProtection(keyPassword);
-            KeyStore.PrivateKeyEntry privateKeyEntry = (KeyStore.PrivateKeyEntry)
-                sslKeyStore.getEntry(alias, entryPassword);
+            KeyStore.PrivateKeyEntry privateKeyEntry = (KeyStore.PrivateKeyEntry) sslKeyStore.getEntry(alias,
+                    entryPassword);
             this.privateKey = privateKeyEntry.getPrivateKey();
-            System.out.println("Keystore present: " + (sslKeyStore != null) + "\n" );
+            System.out.println("Keystore present: " + (sslKeyStore != null) + "\n");
 
             ///////////////////////////////////////////
 
@@ -198,14 +200,14 @@ public class Client {
             rootCert.close();
             System.out.println("Local Certificates Retrieved\n###############################\n");
 
-        }catch(FileNotFoundException e){
+        } catch (FileNotFoundException e) {
             System.out.println("\nFile Input Stream Error");
-            //e.printStackTrace();
+            // e.printStackTrace();
             System.out.println("Exiting Program...");
             System.exit(0);
-        }catch(Exception e){
+        } catch (Exception e) {
             System.out.println("\nLogin Details Incorrect.");
-            //e.printStackTrace();
+            // e.printStackTrace();
             System.exit(0);
         }
     }
@@ -216,11 +218,11 @@ public class Client {
      * @param checkLocal - checks if you're running as localhost or over IP address
      * @return - boolean, true or false
      */
-    public boolean connect(Boolean checkLocal){
-        try{
-            if(checkLocal){
+    public boolean connect(Boolean checkLocal) {
+        try {
+            if (checkLocal) {
                 this.socket = new Socket(this.serverName, serverPort);
-            }else{
+            } else {
                 InetAddress addy = InetAddress.getByName(this.serverName);
                 this.socket = new Socket(addy, serverPort);
             }
@@ -233,7 +235,7 @@ public class Client {
             this.scanner = new Scanner(System.in);
             return true;
 
-        }catch (Exception e) {
+        } catch (Exception e) {
             System.out.println("Unable to connect");
             e.printStackTrace();
         }
@@ -243,7 +245,7 @@ public class Client {
     /**
      * Closing streams and logging off
      */
-    private void closeOpenStreams(){
+    private void closeOpenStreams() {
         try {
             ois.close();
         } catch (IOException e) {
@@ -263,40 +265,42 @@ public class Client {
 
     /**
      * 
-     * Certificate handshakes, handling clients that login, verifying client public keys
+     * Certificate handshakes, handling clients that login, verifying client public
+     * keys
      * 
      * @return boolean, true or false
      * @throws Exception
      */
-    private boolean login() throws Exception {      
+    private boolean login() throws Exception {
         // Certificaition Step
         System.out.println("Certification Step - Beginning");
         boolean loginUser = false;
-        try{
+        try {
             loginUser = handleCertification();
-        }catch (InterruptedException e){
+        } catch (InterruptedException e) {
             e.printStackTrace();
         }
         // If Handle Certification Failed for whatever reason return false
-        if(!loginUser){
+        if (!loginUser) {
             System.out.println("Certification Step - Failed");
             return loginUser;
         }
         System.out.println("Certification Step - Complete\n###############################\n");
         // Certificaition Step - END
 
-        String cmd = "login|"+ userName + "|"+ password+"\n";
+        String cmd = "login|" + userName + "|" + password + "\n";
         serverOut.write(cmd.getBytes());
         String response = bufferIn.readLine();
         System.out.println("Response Line: " + response);
         if ("ok|login".equalsIgnoreCase(response)) {
-            //Receive otherUserKey
+            // Receive otherUserKey
             BufferedInputStream getKey = new BufferedInputStream(serverIn);
-            while(getKey.available()<0){ }
+            while (getKey.available() < 0) {
+            }
             int keySize = getKey.available();
             byte[] key = new byte[294];
             getKey.read(key, 0, 294);
-            String signature =" ";
+            String signature = " ";
             try {
                 otherUserKey = KeyFactory.getInstance("RSA", BC_PROVIDER).generatePublic(new X509EncodedKeySpec(key));
             } catch (InvalidKeySpecException e) {
@@ -307,31 +311,29 @@ public class Client {
             System.out.println("~~~");
 
             System.out.println("Received other user's public key");
-            System.out.println("Public Key: "+ otherUserKey);
+            System.out.println("Public Key: " + otherUserKey);
             System.out.println("~~~");
 
-            try{
-                if (userName.equalsIgnoreCase("Alice")){
+            try {
+                if (userName.equalsIgnoreCase("Alice")) {
                     dis = new DataInputStream(new FileInputStream(new File("../ChatServer/bSig.txt")));
-                    byte [] sigBytes= dis.readAllBytes();
+                    byte[] sigBytes = dis.readAllBytes();
                     signature = new String(sigBytes);
-                }
-                else{
+                } else {
                     dis = new DataInputStream(new FileInputStream(new File("../ChatServer/aSig.txt")));
-                    byte [] sigBytes= dis.readAllBytes();
+                    byte[] sigBytes = dis.readAllBytes();
                     signature = new String(sigBytes);
                 }
 
-            }catch(Exception e){
+            } catch (Exception e) {
                 e.printStackTrace();
             }
             System.out.println("Public Key Recieved" + otherUserKey != null);
-            if (verify(otherUserKey.toString(),signature,serverCert.getPublicKey())){
-               System.out.println("Signature verified");
-               msgReader();
-               msgWriter();
-            }
-            else{
+            if (verify(otherUserKey.toString(), signature, serverCert.getPublicKey())) {
+                System.out.println("Signature verified");
+                msgReader();
+                msgWriter();
+            } else {
                 System.out.println("Alice/Bob public key was not verified to be from the server");
                 System.out.print("Exiting program...");
                 closeOpenStreams();
@@ -364,86 +366,87 @@ public class Client {
     }
 
     /**
-     * Sending certificate to server and receiving server certificate then verify certificate
+     * Sending certificate to server and receiving server certificate then verify
+     * certificate
      * 
      * @return - true or false if verfication process succession/failure
      * @throws IOException
      * @throws InterruptedException
      */
-    private boolean handleCertification() throws IOException, InterruptedException{
+    private boolean handleCertification() throws IOException, InterruptedException {
         System.out.println("Sending certificate to Server");
         InputStream input = this.serverIn;
         OutputStream output = this.serverOut;
 
         /**
-         * Sending user the server X509 certificate 
-        **/
+         * Sending user the server X509 certificate
+         **/
         // Convert CERT into byte[]
         byte[] certificateBytes = null;
-        try{
+        try {
             System.out.print("Certificate Present: ");
             System.out.println(certificate != null);
             certificateBytes = certificate.getEncoded();
-        }catch( CertificateEncodingException e ){
+        } catch (CertificateEncodingException e) {
             System.out.println("Certificate Encoding Exception error");
             e.printStackTrace();
-        }catch( Exception e ){
+        } catch (Exception e) {
             System.out.println("I don't know");
             e.printStackTrace();
         }
-        
-        if(certificateBytes == null){
+
+        if (certificateBytes == null) {
             System.out.println("Not Sending Certificate Bytes");
-        }else {
+        } else {
             System.out.println("Sending Certificate Bytes");
-            output.write( certificateBytes );
+            output.write(certificateBytes);
         }
 
         //////////////////////////////////////////
         System.out.println("\nReceiving certificate from Server");
         Certificate cert = null; // server certificate
         /**
-         * Verifying server the X509 certificate 
-        **/
-        try{
+         * Verifying server the X509 certificate
+         **/
+        try {
             BufferedInputStream bis = new BufferedInputStream(input);
             System.out.print("Server Certificate Present: ");
             CertificateFactory cf = CertificateFactory.getInstance("X.509");
             cert = cf.generateCertificate(bis);
-            
+
             System.out.println(cert != null);
             System.out.println("X.509 Certificate Constructed");
-        }catch( CertificateException e ){
+        } catch (CertificateException e) {
             System.out.println("X.509 Certificate Not Constructed");
             e.printStackTrace();
-        } 
+        }
 
         /////////////////////////////////////////
-        //Need to have verified condition in the code to client prevent 
-        //continuing
+        // Need to have verified condition in the code to client prevent
+        // continuing
         System.out.print("\nVerification of Server Certificate: ");
         /**
-         * Verifying server the X509 certificate 
-        **/
-        try{
-            cert.verify(rootCertificate.getPublicKey(), Security.getProvider(BC_PROVIDER)); 
+         * Verifying server the X509 certificate
+         **/
+        try {
+            cert.verify(rootCertificate.getPublicKey(), Security.getProvider(BC_PROVIDER));
             serverCert = cert;
             System.out.println("Server Certificate Present: " + cert != null);
             System.out.println("complete\n");
             return true;
-        }catch (NoSuchAlgorithmException | InvalidKeyException e) {
-            //handle wrong algos
+        } catch (NoSuchAlgorithmException | InvalidKeyException e) {
+            // handle wrong algos
             System.out.print("Handle wrong algorithms or Invalid key");
             e.printStackTrace();
-        }catch (CertificateException e) {
-            //certificate encoding error
+        } catch (CertificateException e) {
+            // certificate encoding error
             System.out.print("On encoding errors");
             e.printStackTrace();
-        }catch (SignatureException e) {
-            //signature validation error
+        } catch (SignatureException e) {
+            // signature validation error
             System.out.print("Signature validation error");
             e.printStackTrace();
-        }catch (Exception e) {
+        } catch (Exception e) {
             System.out.print("Other error");
             e.printStackTrace();
         }
@@ -452,12 +455,12 @@ public class Client {
     }
 
     /**
-     * Reading and processing data from server 
+     * Reading and processing data from server
      */
-    private void msgReader(){
-        Thread reader = new Thread(){
-            public void run(){
-                while(online){
+    private void msgReader() {
+        Thread reader = new Thread() {
+            public void run() {
+                while (online) {
                     String response = "";
                     try {
                         response = bufferIn.readLine();
@@ -466,7 +469,7 @@ public class Client {
                         System.out.println("Leaving...");
                         System.exit(0);
                     }
-                    try{
+                    try {
                         String[] tokens = response.split(Pattern.quote("|"), 3);
                         // tokens[0] == msg keyword for server
                         // tokens[2] == message body
@@ -477,12 +480,12 @@ public class Client {
                         }
                         if (tokens[0].equalsIgnoreCase("online")) {
                             System.out.println(sender + " is online\n");
-                            
+
                         } else if (tokens[0].equalsIgnoreCase("offline")) {
                             System.out.println(sender + " logged off\n");
                         } else if (tokens[0].equalsIgnoreCase("msg")) {
 
-                            try{
+                            try {
                                 String[] div = tokens[2].split(Pattern.quote("|"), 3);
                                 String ciAES = div[0];
                                 String ciRSA = div[1];
@@ -501,11 +504,12 @@ public class Client {
                                 System.out.println("\nDecrypted session Key: " + aesKey);
                                 String decryptedAES = decryptAES("AES/CBC/PKCS5Padding", ciAES, aesKey, iv);
                                 String decompressedData = decompress(decryptedAES);
-                                System.out.println(sender + ": " + decodeText(decompressedData.split(Pattern.quote("|"),2)) + "\n");
-                            }catch(Exception e){
+                                System.out.println(sender + ": "
+                                        + decodeText(decompressedData.split(Pattern.quote("|"), 2)) + "\n");
+                            } catch (Exception e) {
                                 e.printStackTrace();
                             }
-                            
+
                         } else if (tokens[0].equalsIgnoreCase("img")) {
                             // System.out.println(sender + ": " + tokens[2] + "\n");
                             try {
@@ -521,7 +525,7 @@ public class Client {
 
                                 System.out.println("\nEncrypted Message: " + ciAES);
                                 System.out.println("\nEncrypted Session Key: " + ciRSA);
-                                
+
                                 SecretKey aesKey = decryptRSA("RSA/ECB/PKCS1Padding", ciRSA);
                                 System.out.println("\nDecrypted Session Key: " + aesKey);
                                 String decryptedAES = decryptAES("AES/CBC/PKCS5Padding", ciAES, aesKey, iv);
@@ -534,7 +538,7 @@ public class Client {
                         } else {
                             System.out.println(response + "\n");
                         }
-                    }catch (Exception e) {
+                    } catch (Exception e) {
                         e.printStackTrace();
                         break;
                     }
@@ -558,14 +562,14 @@ public class Client {
             public void run() {
                 while (online) {
                     String message = scanner.nextLine();
-                    String [] tokens = message.split(Pattern.quote("|"), 3);
-                    if(message.equalsIgnoreCase("quit") || message.equalsIgnoreCase("logoff")){
+                    String[] tokens = message.split(Pattern.quote("|"), 3);
+                    if (message.equalsIgnoreCase("quit") || message.equalsIgnoreCase("logoff")) {
                         String cmd = "quit";
                         online = false;
-                        try{
+                        try {
                             serverOut.write(cmd.getBytes());
-                            //System.exit(0);
-                        }catch (IOException e) {
+                            // System.exit(0);
+                        } catch (IOException e) {
                             e.printStackTrace();
                         }
                         closeOpenStreams();
@@ -581,16 +585,21 @@ public class Client {
                             System.out.println("Session Key: " + sharedKey);
                             cipherAES = encryptAES("AES/CBC/PKCS5Padding", encodeString(tokens, receiver), sharedKey,
                                     sharedIv);
-                            cipherRSA = encryptRSA("RSA/ECB/PKCS1Padding", sharedKey, otherUserKey);
+                            if (cipherAES == null) {
+                                System.out.println("Failed to encyrpt data");
+                            } else {
+                                cipherRSA = encryptRSA("RSA/ECB/PKCS1Padding", sharedKey, otherUserKey);
 
-                            System.out.println("\nEncrypted Session Key: " + cipherRSA);
-                            System.out.println("\nEncrypted Message: " + cipherAES);
+                                System.out.println("\nEncrypted Session Key: " + cipherRSA);
+                                System.out.println("\nEncrypted Message: " + cipherAES);
 
-                            String cmd = "img" + "|" + receiver + "|" + cipherAES + "|" + cipherRSA +"|"+ imageName + "\n";
-                            //System.out.println("writing to server");
-                            serverOut.write(cmd.getBytes());
-                            //System.out.println("wrote to server");
-                        }catch (Exception e) {
+                                String cmd = "img" + "|" + receiver + "|" + cipherAES + "|" + cipherRSA + "|"
+                                        + imageName + "\n";
+
+                                serverOut.write(cmd.getBytes());
+                            }
+
+                        } catch (Exception e) {
                             e.printStackTrace();
                         }
                     } else {
@@ -617,76 +626,81 @@ public class Client {
                     }
                     System.out.println("---");
                 }
-                
+
             }
         };
         writer.start();
     }
 
     /**
-     * Encoding compressed message with image to be sent to other client 
+     * Encoding compressed message with image to be sent to other client
      * 
-     * @param tokens - array containing tokens of message to be sent to server
+     * @param tokens   - array containing tokens of message to be sent to server
      * @param receiver - client name to recieve the image being sent
-     * @return - encoded base64 image with caption, hash and signature to be encrypted
+     * @return - encoded base64 image with caption, hash and signature to be
+     *         encrypted
      * @throws Exception
      */
-    private String encodeString(String[] tokens, String receiver) throws Exception { 
+    private String encodeString(String[] tokens, String receiver) throws Exception {
         // [img,caption,file]
         String caption = tokens[1];
         File f;
-        if(receiver.equalsIgnoreCase("Alice")){
-            f = new File("../Bob/"+tokens[2]);
+        String encodedImgCap = null;
+        try{
+            if (receiver.equalsIgnoreCase("Alice")) {
+                f = new File("../Bob/" + tokens[2]);
+            } else {
+                f = new File("../Alice/" + tokens[2]);
+            }
+            FileInputStream fis = new FileInputStream(f); // taking in file
+            System.out.println("Still sending to server....");
+            byte imageData[] = new byte[(int) f.length()];
+            fis.read(imageData);
+            String base64Image = Base64.getEncoder().encodeToString(imageData);
+    
+            String hashout = sha256(base64Image + "|" + caption);
+            String signature = sign(hashout, privateKey);
+            encodedImgCap = compress(base64Image + "|" + caption + "|" + hashout + "|" + signature);
+            fis.close();
+            System.out.println("Hashed Image Details: " + hashout);
+        }catch(Exception e){
+            System.out.println("No such file in directory. Please enter an existing file name with extension.");
         }
-        else{
-            f = new File("../Alice/"+tokens[2]);
-        }
-        FileInputStream fis = new FileInputStream(f); // taking in file
-        System.out.println("Still sending to server....");
-        byte imageData[] = new byte[(int) f.length()];
-        fis.read(imageData);
-        String base64Image = Base64.getEncoder().encodeToString(imageData);
-
-        String hashout = sha256(base64Image + "|" + caption);
-        String signature = sign(hashout,privateKey);
-        String encodedImgCap = compress(base64Image + "|" + caption + "|" + hashout+ "|"+ signature);
-        fis.close();
-        System.out.println("Hashed Image Details: " + hashout);
+        
         return encodedImgCap;
     }
 
     /**
      * Decoding message with image sent recieved from other client
      * 
-     * @param tokens - array containing tokens of message recieved from server
+     * @param tokens     - array containing tokens of message recieved from server
      * @param fileSender - client name that sent the image message
      * @throws Exception
      */
     private void decodeString(String[] tokens, String fileSender) throws Exception {
-                                                                 
+
         System.out.println("Recieving from server...");
         FileOutputStream fos;
-        if(fileSender.equalsIgnoreCase("Alice")){
-            fos = new FileOutputStream("../Bob/"+imageName);
-        }
-        else{
-            fos = new FileOutputStream("../Alice/"+imageName);
+        if (fileSender.equalsIgnoreCase("Alice")) {
+            fos = new FileOutputStream("../Bob/" + imageName);
+        } else {
+            fos = new FileOutputStream("../Alice/" + imageName);
         }
         try {
             String[] captionHashSign = new String(tokens[1]).split(Pattern.quote("|"), 3);
-            
-            //calculating hash
-            String hashin = sha256(tokens[0]+"|"+captionHashSign[0]);
+
+            // calculating hash
+            String hashin = sha256(tokens[0] + "|" + captionHashSign[0]);
             String signature = captionHashSign[2];
             System.out.println("\nHashed Image Details: " + hashin);
-            
-            if (captionHashSign[1].equalsIgnoreCase(hashin) && verify(hashin, signature,otherUserKey)) {
+
+            if (captionHashSign[1].equalsIgnoreCase(hashin) && verify(hashin, signature, otherUserKey)) {
                 String file = new String(tokens[0]).replaceAll(" +", "+");
                 byte[] b = Base64.getDecoder().decode(file);
-                fos.write(b); 
-                System.out.println("Image received from: "+ sender);
+                fos.write(b);
+                System.out.println("Image received from: " + sender);
                 System.out.println("Image filename: " + imageName);
-                System.out.println("Image caption: " +  captionHashSign[0]);
+                System.out.println("Image caption: " + captionHashSign[0]);
                 fos.close();
             } else {
                 System.out.println("Confidentiality breached! Could not receive file because it has been compromised.");
@@ -699,7 +713,7 @@ public class Client {
     /**
      * Encoding normal message sent over network
      * 
-     * @param message - message to be sent
+     * @param message  - message to be sent
      * @param reciever - client name to recieve the message
      * @return - encoded message to be sent to be encrypted
      * @throws IOException
@@ -719,7 +733,7 @@ public class Client {
      * @return - decoded message to be displayed
      * @throws Exception
      */
-    private String decodeText(String[] tokens) throws Exception { 
+    private String decodeText(String[] tokens) throws Exception {
         String text = "";
         try {
             String textHash = tokens[1];
@@ -729,7 +743,7 @@ public class Client {
             System.out.println("\nHashed Message: " + hashin);
             if (textHash.equalsIgnoreCase(hashin)) {
                 byte[] b = Base64.getDecoder().decode(tokens[0]);
-                text = new String (b);
+                text = new String(b);
             } else {
                 System.out.println("Confidentiality breached!");
             }
@@ -743,9 +757,9 @@ public class Client {
      * Encrypting encoded message with AES algorithm
      * 
      * @param algorithm - encryptiong algorithm to be used (AES/CBC/PKCS5Padding)
-     * @param input - message to be encrypted 
-     * @param key - AES secret key to use for encryption
-     * @param iv - AES initialization vector
+     * @param input     - message to be encrypted
+     * @param key       - AES secret key to use for encryption
+     * @param iv        - AES initialization vector
      * @return - encrypted message
      * @throws NoSuchPaddingException
      * @throws NoSuchAlgorithmException
@@ -757,19 +771,26 @@ public class Client {
     private String encryptAES(String algorithm, String input, SecretKey key, IvParameterSpec iv)
             throws NoSuchPaddingException, NoSuchAlgorithmException, InvalidAlgorithmParameterException,
             InvalidKeyException, BadPaddingException, IllegalBlockSizeException {
-        Cipher cipher = Cipher.getInstance(algorithm);
-        cipher.init(Cipher.ENCRYPT_MODE, key, iv);
-        byte[] cipherText = cipher.doFinal(input.getBytes(StandardCharsets.UTF_8));
-        return Base64.getEncoder().encodeToString(cipherText);
+        byte[] cipherText = null;
+        try {
+            Cipher cipher = Cipher.getInstance(algorithm);
+            cipher.init(Cipher.ENCRYPT_MODE, key, iv);
+            cipherText = cipher.doFinal(input.getBytes(StandardCharsets.UTF_8));
+            return Base64.getEncoder().encodeToString(cipherText);
+        } catch (NullPointerException e) {
+
+        }
+        return null;
+
     }
 
     /**
      * Decrypting message recieved from other client
      * 
-     * @param algorithm - decryption algorithm to be used (AES/CBC/PKCS5Padding)
+     * @param algorithm  - decryption algorithm to be used (AES/CBC/PKCS5Padding)
      * @param cipherText - cipher text generated from AES encryption
-     * @param key - AES secret key decrypted from RSA
-     * @param iv - AES initialization vector
+     * @param key        - AES secret key decrypted from RSA
+     * @param iv         - AES initialization vector
      * @return - decrypted encoded message
      * @throws NoSuchPaddingException
      * @throws NoSuchAlgorithmException
@@ -792,11 +813,11 @@ public class Client {
     }
 
     /**
-     * Encrypting AES key using RSA algorithm 
+     * Encrypting AES key using RSA algorithm
      * 
      * @param algorithm - encryption algorithm to be used (RSA/ECB/PKCS1Padding)
-     * @param input - AES secret key to be encrypted
-     * @param pkey - public key of client to be sent to
+     * @param input     - AES secret key to be encrypted
+     * @param pkey      - public key of client to be sent to
      * @return - base64 encoded cipher text
      * @throws NoSuchAlgorithmException
      * @throws NoSuchPaddingException
@@ -810,7 +831,7 @@ public class Client {
         Cipher cipher = Cipher.getInstance(algorithm, new BouncyCastleProvider());
         cipher.init(Cipher.ENCRYPT_MODE, pkey);
         byte[] cipherText = cipher.doFinal(input.getEncoded());
- 
+
         return Base64.getEncoder().encodeToString(cipherText);
     }
 
@@ -818,7 +839,7 @@ public class Client {
      * Decrypting AES key using RSA algorithm
      * 
      * @param algorithm - decrypting algorithm to be used (RSA/ECB/PKCS1Padding)
-     * @param input - cipher text generated from encrypting using RSA
+     * @param input     - cipher text generated from encrypting using RSA
      * @return - decrypted AES key
      * @throws NoSuchAlgorithmException
      * @throws NoSuchPaddingException
@@ -838,7 +859,7 @@ public class Client {
     }
 
     /**
-     * Hashing message (using SHA256) to be sent to other client 
+     * Hashing message (using SHA256) to be sent to other client
      * 
      * @param rawinput - original message to be hashed
      * @return - calculated hash of message
@@ -873,7 +894,7 @@ public class Client {
     }
 
     /**
-     * Decompressing decrypted message  using GZIP
+     * Decompressing decrypted message using GZIP
      * 
      * @param st - data to be decompressed from AES decryption
      * @return - decompressed original message
@@ -894,26 +915,25 @@ public class Client {
         bis.close();
         return sb.toString();
     }
-   
+
     /**
      * Signing the hash of message to be sent (integrity)
      * 
-     * @param plainText - hash to be signed
+     * @param plainText  - hash to be signed
      * @param privateKey - private key of sending client
      * @return - base64 encoded signature
      * @throws Exception
      */
-   
+
     public static String sign(String plainText, PrivateKey privateKey) throws Exception {
         Signature privateSignature = Signature.getInstance("SHA256withRSA");
         privateSignature.initSign(privateKey);
         privateSignature.update(plainText.getBytes(StandardCharsets.UTF_8));
-    
+
         byte[] signature = privateSignature.sign();
-    
+
         return Base64.getEncoder().encodeToString(signature);
     }
-
 
     /**
      * Verification of the sent signature using senders public key and signature
@@ -924,18 +944,16 @@ public class Client {
      * @return - boolean, true or false
      * @throws Exception
      */
-    //Verify method for signing
+    // Verify method for signing
     public static boolean verify(String plainText, String signature, PublicKey publicKey) throws Exception {
         Signature publicSignature = Signature.getInstance("SHA256withRSA");
         publicSignature.initVerify(publicKey);
         publicSignature.update(plainText.getBytes(StandardCharsets.UTF_8));
-    
+
         byte[] signatureBytes = Base64.getDecoder().decode(signature);
-    
+
         return publicSignature.verify(signatureBytes);
     }
-
-
 
 }
 
