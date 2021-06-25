@@ -207,12 +207,13 @@ public class Server {
         //generateIv();
         
         try (ServerSocket serverSocket = new ServerSocket(serverPort, 0, addr)) {
-            System.out.println("Server is alive\n");
+            System.out.println("Server is alive");
+            System.out.println("Session Key: " + sharedKey);
+            System.out.println(" \n##########################################\n ");
             while (true) {   
                 Socket clientSocket = serverSocket.accept();
                 ServerWorker worker = new ServerWorker(this, clientSocket, sharedKey, sharedIv);
                 
-                //// ADD LOCK
                 lock.lock();
                 try {
                     workerList.add(worker);
@@ -222,8 +223,6 @@ public class Server {
                     lock.unlock();
                 }
                 
-                
-                //// ADD LOCK
                 System.out.println("New ServerWorker Thread created and added to list");
                 worker.start();
             }
@@ -232,19 +231,7 @@ public class Server {
             e.printStackTrace();
         }
     }
-/*
-    public void generateKey() throws NoSuchAlgorithmException { // 256 bit key for 14 rounds
-        KeyGenerator keyGenerator = KeyGenerator.getInstance("AES");
-        keyGenerator.init(256);
-        sharedKey = keyGenerator.generateKey(); 
-    }
 
-    public void generateIv() { // IV vector should be the same for each client to decrypt/encrypt// reciever
-        byte[] iv = new byte[16];
-        new SecureRandom().nextBytes(iv);
-        sharedIv = new IvParameterSpec(iv);
-    }
-*/
     public void removeWorker(ServerWorker serverWorker) {
         
         workerList.remove(serverWorker);
@@ -423,50 +410,7 @@ public class Server {
                 }
             }
         }
-    
-        /*
-        public void generateKey(String name) throws NoSuchAlgorithmException { // 256 bit key for 14 rounds
-    
-        public void generateKey(String name) throws NoSuchAlgorithmException { // 256 bit key for 14 rounds
-            String sendTo = name; // reciever
-            List<ServerWorker> workerList = server.getWorkerList();
-            for (ServerWorker worker : workerList) {
-                if (sendTo.equalsIgnoreCase(worker.getLogin())) {
-                    try {
-                        worker.sendKey(sharedKey);
-                        System.out.println(sharedKey);
-                    } catch (IOException e) {
-                        // TODO Auto-generated catch block
-                        e.printStackTrace();
-                    }
-                }
-            }
-    
-        }
-    
-        private void sendKey(SecretKey key) throws IOException {
-            if (login != null) {
-                dos.write(key.getEncoded());
-               // objectOutputStream.writeObject(key);
-            }
-        }
-                
-        public void generateIv(String name) { // IV vector should be the same for each client to decrypt/encrypt
-            String sendTo = name; // reciever
-            List<ServerWorker> workerList = server.getWorkerList();
-            for (ServerWorker worker : workerList) {
-                if (sendTo.equalsIgnoreCase(worker.getLogin())) {
-                    try {
-                        //IvParameterSpec Iv = new IvParameterSpec(iv);
-                        output.write(sharedIv.getIV());
-                    } catch (IOException e) {
-                        e.printStackTrace();
-                    }
-                }
-            }
-        }
-    */
-        
+
     private void handleImage(String[] tokens) {
             String sendTo = tokens[1]; // reciever
             String cipherAES = tokens[2]; // cipherAES
