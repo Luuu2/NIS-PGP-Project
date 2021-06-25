@@ -100,6 +100,7 @@ public class Client {
     private Certificate serverCert;
     private PrivateKey privateKey;
     private PublicKey otherUserKey;
+    protected boolean online;
 
 
     public Client(String serverName, int serverPort, String userName, String password) {
@@ -107,6 +108,7 @@ public class Client {
         this.serverPort = serverPort;
         this.userName = userName;
         this.password = password;
+        this.online = true;
 
         String alias = userName.equalsIgnoreCase("Bob") ? "PGP-iBcert":"PGP-iAcert";
         String certfile = alias + ".cer";
@@ -224,6 +226,24 @@ public class Client {
         return false;
     }
 
+    private void closeOpenStreams(){
+        try {
+            ois.close();
+        } catch (IOException e) {
+        }
+        try {
+            dis.close();
+        } catch (IOException e) {
+        }
+        try {
+            serverIn.close();
+        } catch (IOException e) {
+        }
+        scanner.close();
+        System.out.println("Closed Open Streams");
+        System.exit(0);
+    }
+
     private boolean login() throws Exception {      
         // Certificaition Step
         System.out.println("Certification Step - Beginning");
@@ -286,47 +306,25 @@ public class Client {
             }catch(Exception e){
                 e.printStackTrace();
             }
+            System.out.println(otherUserKey != null);
+            System.out.println(signature);
+            System.out.println(serverCert);
+            System.out.println(serverCert.getPublicKey());
             if (verify(otherUserKey.toString(),signature,serverCert.getPublicKey())){
                System.out.println("signature verified");
+               msgReader();
+               msgWriter();
             }
             else{
-                System.out.println("Alice/Bob  public key was not verified to be from the server");
+                System.out.println("Alice/Bob public key was not verified to be from the server");
+                closeOpenStreams();
+                System.out.print("Exiting program...");
+                System.exit(0);
             }
-            msgReader();
-            msgWriter();
-            //System.out.println(otherUserCert.toString());
-            //msgReader();
-            //msgWriter();
             return true;
         } else {
             return false;
         }
-    }
-
-    private void receiveCert(){
-        //InputStream input = this.serverIn;
-        
-        try{
-            BufferedInputStream bis = new BufferedInputStream(serverIn);
-            System.out.println(bis.toString());
-            CertificateFactory cf = CertificateFactory.getInstance("X.509");
-            System.out.println("CF created.");
-            //System.out.println(otherUserCert.toString());
-            otherUserCert = cf.generateCertificate(bis);
-            //System.out.println(otherUserCert.toString());
-            System.out.println(otherUserCert != null);
-            System.out.println("X.509 Certificate Constructed");
-        }catch( CertificateException e ){
-            System.out.println("X.509 Certificate Not Constructed");
-            e.printStackTrace();
-        } 
-
-        /*try {
-            input.close();
-        } catch (IOException e) {
-            e.printStackTrace();
-        }*/
-
     }
 
     public void generateKey() throws NoSuchAlgorithmException { // 256 bit key for 14 rounds
@@ -399,6 +397,8 @@ public class Client {
         **/
         try{
             cert.verify(rootCertificate.getPublicKey(), Security.getProvider(BC_PROVIDER)); 
+            serverCert = cert;
+            System.out.println("Server Certificate Present: " + cert != null);
             System.out.println("complete\n");
             return true;
         }catch (NoSuchAlgorithmException | InvalidKeyException e) {
@@ -424,9 +424,16 @@ public class Client {
     private void msgReader(){
         Thread reader = new Thread(){
             public void run(){
-                while(true){
+                while(online){
+                    String response = "";
+                    try {
+                        response = bufferIn.readLine();
+                    } catch (IOException e) {
+                        System.out.println("Socket not available");
+                        System.out.println("Leaving...");
+                        System.exit(0);
+                    }
                     try{
-                        String response = bufferIn.readLine();
                         String[] tokens = response.split(Pattern.quote("|"), 3);
                         // tokens[0] == msg keyword for server
                         // tokens[2] == message body
@@ -490,7 +497,7 @@ public class Client {
                             System.out.println(response + "\n");
                         }
                         System.out.println("In here");
-                    }catch (IOException e) {
+                    }catch (Exception e) {
                         e.printStackTrace();
                         break;
                     }
@@ -508,23 +515,22 @@ public class Client {
         }
         Thread writer = new Thread() {
             public void run() {
-                while (true) {
+                while (online) {
                     System.out.println(userName + "'s writer is alive");
                     String message = scanner.nextLine();
                     String [] tokens = message.split(Pattern.quote("|"), 3);
                     if(message.equalsIgnoreCase("quit") || message.equalsIgnoreCase("logoff")){
                         String cmd = "quit";
+                        online = false;
                         try{
                             serverOut.write(cmd.getBytes());
                             //System.exit(0);
                         }catch (IOException e) {
                             e.printStackTrace();
                         }
-                        try {
-                            socket.close();
-                        } catch (IOException e) {
-                            System.out.println("Socket closed");
-                        }
+                        System.out.println("C");
+                        closeOpenStreams();
+                        System.out.println("D");
                         System.exit(0);
                     } else if (tokens[0].equalsIgnoreCase("img")) {
                         try {
@@ -598,7 +604,7 @@ public class Client {
                                                                                                    // file
                                                                                                    // will be saved
         try {
-            String[] captionHashSign = new String(tokens[1]).split(Pattern.quote("|"), 2);
+            String[] captionHashSign = new String(tokens[1]).split(Pattern.quote("|"), 3);
             
             //calculating hash
             String hashin = sha256(tokens[0]+"|"+captionHashSign[0]);

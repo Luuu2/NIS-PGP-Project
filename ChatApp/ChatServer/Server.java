@@ -81,7 +81,6 @@ public class Server {
     private PrivateKey privateKey;
     private Hashtable<String, PublicKey> keyRing;
     static InetAddress addr;
-    private BufferedOutputStream bos;
  
     public Server(int serverPort) {
         this.serverPort = serverPort;
@@ -206,23 +205,6 @@ public class Server {
     public void run() throws NoSuchAlgorithmException {
         //generateKey();
         //generateIv();
-        ObjectOutputStream oos;
-        FileOutputStream fos;
-       /* try {
-            //oos = new ObjectOutputStream(new FileOutputStream("Key.txt"));
-            //oos.writeObject(sharedKey);
-            //oos.close();
-            //fos = new FileOutputStream(new File("IV.txt"));
-            //BufferedOutputStream bos = new BufferedOutputStream(fos);
-           // bos.write(sharedIv.getIV());
-            //bos.close();
-        } catch (FileNotFoundException e1) {
-            // TODO Auto-generated catch block
-            e.printStackTrace();
-        } catch (IOException e) {
-            // TODO Auto-generated catch block
-            e1.printStackTrace();
-        }*/
         
         try (ServerSocket serverSocket = new ServerSocket(serverPort, 0, addr)) {
             System.out.println("Server is alive\n");
@@ -279,7 +261,6 @@ public class Server {
         private IvParameterSpec sharedIv;
         private DataOutputStream dos;
 
-
         public ServerWorker(Server server, Socket clientSocket, SecretKey key, IvParameterSpec iv) {
             this.server = server;
             this.clientSocket = clientSocket;
@@ -291,16 +272,39 @@ public class Server {
             try {
                 System.out.println("Running HandleClient...");
                 handleClient(); // this method is only ever called when a thread is started
-                clientSocket.close();
+                closeOpenStream();
             } catch (IOException e) {
                 e.printStackTrace();
             } catch (InterruptedException e) {
                 e.printStackTrace();
             } catch (Exception e) {
-                // TODO Auto-generated catch block
                 e.printStackTrace();
             }
             System.out.println("Client End...");
+        }
+
+        private void closeOpenStream(){
+            try {
+                clientSocket.close();
+            } catch (IOException e) {
+            }
+            try {
+                dos.close();
+            } catch (IOException e) {
+            }
+            try {
+                output.close();
+            } catch (IOException e) {
+            }
+            try {
+                input.close();
+            } catch (IOException e) {
+            }
+            try {
+                objectOutputStream.close();
+            } catch (IOException e) {
+            }
+            System.out.println("Close input streams");
         }
 
         private Certificate handleClientCertification() throws IOException, InterruptedException{
@@ -575,7 +579,6 @@ public class Server {
                         byte [] bobBytes = bob.getEncoded();
                         String signature = sign(bob.toString(),privateKey);
                         FileOutputStream fos = new FileOutputStream("bSig.txt");
-                        bos = new BufferedOutputStream(fos);
                         fos.write(signature.getBytes());
 
                         byte [] kr = keyRing.get("Bob").getEncoded();
@@ -607,7 +610,6 @@ public class Server {
                         PublicKey Alice = keyRing.get("Alice");
                         String signature = sign(Alice.toString(),privateKey);
                         FileOutputStream fos = new FileOutputStream("aSig.txt");
-                        bos = new BufferedOutputStream(fos);
                         fos.write(signature.getBytes());
                         send(keyRing.get("Alice").getEncoded());
                         //send(signature);
