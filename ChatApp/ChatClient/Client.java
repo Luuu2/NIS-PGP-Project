@@ -101,7 +101,6 @@ public class Client {
     private PublicKey otherUserKey;
     protected boolean online;
 
-
     public Client(String serverName, int serverPort, String userName, String password) {
         this.serverName = serverName;
         this.serverPort = serverPort;
@@ -121,6 +120,11 @@ public class Client {
         }
     }
 
+    /**
+     * Main method
+     * @param args
+     * @throws Exception
+     */
     public static void main(String[] args) throws Exception {
         Security.addProvider(new BouncyCastleProvider());
         Boolean isLocal = true;
@@ -144,6 +148,15 @@ public class Client {
         }
     }
 
+    /**
+     * Import key stores and local certificates from files
+     * 
+     * @param fileNameKS - key store file name with user certificates 
+     * @param fileNameC - root certificate file name
+     * @param alias - name of certificate holder
+     * @param storeType 
+     * @throws Exception
+     */
     private void importKeyPairFromKeystoreFile(String fileNameKS, String fileNameC, String alias, String storeType) throws Exception {
         FileInputStream keyStoreOs;
         FileInputStream rootCert;
@@ -197,6 +210,12 @@ public class Client {
         }
     }
 
+    /**
+     * Connect client socket to the server
+     * 
+     * @param checkLocal - checks if you're running as localhost or over IP address
+     * @return - boolean, true or false
+     */
     public boolean connect(Boolean checkLocal){
         try{
             if(checkLocal){
@@ -221,6 +240,9 @@ public class Client {
         return false;
     }
 
+    /**
+     * Closing streams and logging off
+     */
     private void closeOpenStreams(){
         try {
             ois.close();
@@ -239,6 +261,13 @@ public class Client {
         System.exit(0);
     }
 
+    /**
+     * 
+     * Certificate handshakes, handling clients that login, verifying client public keys
+     * 
+     * @return boolean, true or false
+     * @throws Exception
+     */
     private boolean login() throws Exception {      
         // Certificaition Step
         System.out.println("Certification Step - Beginning");
@@ -284,13 +313,11 @@ public class Client {
             try{
                 if (userName.equalsIgnoreCase("Alice")){
                     dis = new DataInputStream(new FileInputStream(new File("../ChatServer/bSig.txt")));
-                    //FileInputStream fis = new FileInputStream("../ChatServer/aSig.txt");
                     byte [] sigBytes= dis.readAllBytes();
                     signature = new String(sigBytes);
                 }
                 else{
                     dis = new DataInputStream(new FileInputStream(new File("../ChatServer/aSig.txt")));
-                    //FileInputStream fis = new FileInputStream("../ChatServer/bSig.txt");
                     byte [] sigBytes= dis.readAllBytes();
                     signature = new String(sigBytes);
                 }
@@ -316,19 +343,33 @@ public class Client {
         return false;
     }
 
+    /**
+     * Generating the shared SecretKey for AES algorithm
+     * 
+     * @throws NoSuchAlgorithmException
+     */
     public void generateKey() throws NoSuchAlgorithmException { // 256 bit key for 14 rounds
         KeyGenerator keyGenerator = KeyGenerator.getInstance("AES");
         keyGenerator.init(256);
         sharedKey = keyGenerator.generateKey();
     }
 
+    /**
+     * Geneating the Initialization Vector for AES algorithm
+     */
     public void generateIv() { // IV vector should be the same for each client to decrypt/encrypt// reciever
         byte[] iv = new byte[16];
         new SecureRandom().nextBytes(iv);
         sharedIv = new IvParameterSpec(iv);
     }
 
-    //send our certificate to server and receive a certificate from the server then verify
+    /**
+     * Sending certificate to server and receiving server certificate then verify certificate
+     * 
+     * @return - true or false if verfication process succession/failure
+     * @throws IOException
+     * @throws InterruptedException
+     */
     private boolean handleCertification() throws IOException, InterruptedException{
         System.out.println("Sending certificate to Server");
         InputStream input = this.serverIn;
@@ -410,6 +451,9 @@ public class Client {
         return false;
     }
 
+    /**
+     * Reading and processing data from server 
+     */
     private void msgReader(){
         Thread reader = new Thread(){
             public void run(){
@@ -426,7 +470,6 @@ public class Client {
                         String[] tokens = response.split(Pattern.quote("|"), 3);
                         // tokens[0] == msg keyword for server
                         // tokens[2] == message body
-                        
                         if (userName.equalsIgnoreCase("Alice")) {
                             sender = "Bob";
                         } else {
@@ -434,14 +477,13 @@ public class Client {
                         }
                         if (tokens[0].equalsIgnoreCase("online")) {
                             System.out.println(sender + " is online\n");
-                            //System.out.println(otherUserCert.toString());
                             
                         } else if (tokens[0].equalsIgnoreCase("offline")) {
                             System.out.println(sender + " logged off\n");
                         } else if (tokens[0].equalsIgnoreCase("msg")) {
 
                             try{
-                                String[] div = tokens[2].split(Pattern.quote("|"), 3); // splitting the third token
+                                String[] div = tokens[2].split(Pattern.quote("|"), 3);
                                 String ciAES = div[0];
                                 String ciRSA = div[1];
 
@@ -485,7 +527,7 @@ public class Client {
                                 String decryptedAES = decryptAES("AES/CBC/PKCS5Padding", ciAES, aesKey, iv);
                                 String decompressedData = decompress(decryptedAES);
                                 String[] imgCap = decompressedData.split(Pattern.quote("|"), 2);
-                                decodeString(imgCap);
+                                decodeString(imgCap, sender);
                             } catch (Exception e) {
                                 e.printStackTrace();
                             }
@@ -503,6 +545,9 @@ public class Client {
         reader.start();
     }
 
+    /**
+     * Processing and writing data to server
+     */
     private void msgWriter() {
         if (userName.equalsIgnoreCase("Alice")) {
             receiver = "Bob";
@@ -519,6 +564,7 @@ public class Client {
                         online = false;
                         try{
                             serverOut.write(cmd.getBytes());
+                            //System.exit(0);
                         }catch (IOException e) {
                             e.printStackTrace();
                         }
@@ -577,11 +623,24 @@ public class Client {
         writer.start();
     }
 
-    private String encodeString(String[] tokens, String receiver) throws Exception { // tokens format:
+    /**
+     * Encoding compressed message with image to be sent to other client 
+     * 
+     * @param tokens - array containing tokens of message to be sent to server
+     * @param receiver - client name to recieve the image being sent
+     * @return - encoded base64 image with caption, hash and signature to be encrypted
+     * @throws Exception
+     */
+    private String encodeString(String[] tokens, String receiver) throws Exception { 
         // [img,caption,file]
         String caption = tokens[1];
-
-        File f = new File("../SendingImages/"+tokens[2]); // file to be taken in (image path)
+        File f;
+        if(receiver.equalsIgnoreCase("Alice")){
+            f = new File("../Bob/"+tokens[2]);
+        }
+        else{
+            f = new File("../Alice/"+tokens[2]);
+        }
         FileInputStream fis = new FileInputStream(f); // taking in file
         System.out.println("Still sending to server....");
         byte imageData[] = new byte[(int) f.length()];
@@ -591,18 +650,28 @@ public class Client {
         String hashout = sha256(base64Image + "|" + caption);
         String signature = sign(hashout,privateKey);
         String encodedImgCap = compress(base64Image + "|" + caption + "|" + hashout+ "|"+ signature);
-
+        fis.close();
         System.out.println("Hashed Image Details: " + hashout);
         return encodedImgCap;
     }
 
-    // token format from server: [baseImage,caption]
-    private void decodeString(String[] tokens) throws Exception { // tokens format: ["img",reciever,caption base64Image]
-                                                                  // -- takes in the caption + baseimage as one
+    /**
+     * Decoding message with image sent recieved from other client
+     * 
+     * @param tokens - array containing tokens of message recieved from server
+     * @param fileSender - client name that sent the image message
+     * @throws Exception
+     */
+    private void decodeString(String[] tokens, String fileSender) throws Exception {
+                                                                 
         System.out.println("Recieving from server...");
-        FileOutputStream fos = new FileOutputStream("../RecievedImages/"+imageName); // where the new
-                                                                                                   // file
-                                                                                                   // will be saved
+        FileOutputStream fos;
+        if(fileSender.equalsIgnoreCase("Alice")){
+            fos = new FileOutputStream("../Bob/"+imageName);
+        }
+        else{
+            fos = new FileOutputStream("../Alice/"+imageName);
+        }
         try {
             String[] captionHashSign = new String(tokens[1]).split(Pattern.quote("|"), 3);
             
@@ -614,11 +683,11 @@ public class Client {
             if (captionHashSign[1].equalsIgnoreCase(hashin) && verify(hashin, signature,otherUserKey)) {
                 String file = new String(tokens[0]).replaceAll(" +", "+");
                 byte[] b = Base64.getDecoder().decode(file);
-                fos.write(b); // write bytes to new file
-                //System.out.println("Received!");
-                System.out.println("\nImage received from: "+ sender);
+                fos.write(b); 
+                System.out.println("Image received from: "+ sender);
                 System.out.println("Image filename: " + imageName);
                 System.out.println("Image caption: " +  captionHashSign[0]);
+                fos.close();
             } else {
                 System.out.println("Confidentiality breached! Could not receive file because it has been compromised.");
             }
@@ -627,16 +696,30 @@ public class Client {
         }
     }
 
+    /**
+     * Encoding normal message sent over network
+     * 
+     * @param message - message to be sent
+     * @param reciever - client name to recieve the message
+     * @return - encoded message to be sent to be encrypted
+     * @throws IOException
+     */
     private String encodeText(String message, String reciever) throws IOException {
         String base64Msg = Base64.getEncoder().encodeToString(message.getBytes());
         String hashout = sha256(base64Msg);
-        System.out.println("Hashed Message: " + hashout);
         String encodedMsg = compress(base64Msg + "|" + hashout);
+        System.out.println("Hashed Message: " + hashout);
         return encodedMsg;
     }
 
-    private String decodeText(String[] tokens) throws Exception { // tokens format: ["img",reciever,caption base64Image]
-                                                                  // -- takes in the caption + baseimage as one
+    /**
+     * Decoding normal message recieved from other client
+     * 
+     * @param tokens - array containing hash and message sent
+     * @return - decoded message to be displayed
+     * @throws Exception
+     */
+    private String decodeText(String[] tokens) throws Exception { 
         String text = "";
         try {
             String textHash = tokens[1];
@@ -656,8 +739,21 @@ public class Client {
         return text;
     }
 
-    // AES decrypt + encrypt
-    // encryting Base64 + caption String
+    /**
+     * Encrypting encoded message with AES algorithm
+     * 
+     * @param algorithm - encryptiong algorithm to be used (AES/CBC/PKCS5Padding)
+     * @param input - message to be encrypted 
+     * @param key - AES secret key to use for encryption
+     * @param iv - AES initialization vector
+     * @return - encrypted message
+     * @throws NoSuchPaddingException
+     * @throws NoSuchAlgorithmException
+     * @throws InvalidAlgorithmParameterException
+     * @throws InvalidKeyException
+     * @throws BadPaddingException
+     * @throws IllegalBlockSizeException
+     */
     private String encryptAES(String algorithm, String input, SecretKey key, IvParameterSpec iv)
             throws NoSuchPaddingException, NoSuchAlgorithmException, InvalidAlgorithmParameterException,
             InvalidKeyException, BadPaddingException, IllegalBlockSizeException {
@@ -667,7 +763,21 @@ public class Client {
         return Base64.getEncoder().encodeToString(cipherText);
     }
 
-    // decrypting Base64 + caption String
+    /**
+     * Decrypting message recieved from other client
+     * 
+     * @param algorithm - decryption algorithm to be used (AES/CBC/PKCS5Padding)
+     * @param cipherText - cipher text generated from AES encryption
+     * @param key - AES secret key decrypted from RSA
+     * @param iv - AES initialization vector
+     * @return - decrypted encoded message
+     * @throws NoSuchPaddingException
+     * @throws NoSuchAlgorithmException
+     * @throws InvalidAlgorithmParameterException
+     * @throws InvalidKeyException
+     * @throws BadPaddingException
+     * @throws IllegalBlockSizeException
+     */
     private String decryptAES(String algorithm, String cipherText, SecretKey key, IvParameterSpec iv)
             throws NoSuchPaddingException, NoSuchAlgorithmException, InvalidAlgorithmParameterException,
             InvalidKeyException, BadPaddingException, IllegalBlockSizeException {
@@ -681,7 +791,19 @@ public class Client {
         return new String(plainText);
     }
 
-    // RSA encryption + decrypting
+    /**
+     * Encrypting AES key using RSA algorithm 
+     * 
+     * @param algorithm - encryption algorithm to be used (RSA/ECB/PKCS1Padding)
+     * @param input - AES secret key to be encrypted
+     * @param pkey - public key of client to be sent to
+     * @return - base64 encoded cipher text
+     * @throws NoSuchAlgorithmException
+     * @throws NoSuchPaddingException
+     * @throws InvalidKeyException
+     * @throws IllegalBlockSizeException
+     * @throws BadPaddingException
+     */
     private String encryptRSA(String algorithm, SecretKey input, PublicKey pkey) throws NoSuchAlgorithmException,
             NoSuchPaddingException, InvalidKeyException, IllegalBlockSizeException, BadPaddingException {
 
@@ -692,6 +814,18 @@ public class Client {
         return Base64.getEncoder().encodeToString(cipherText);
     }
 
+    /**
+     * Decrypting AES key using RSA algorithm
+     * 
+     * @param algorithm - decrypting algorithm to be used (RSA/ECB/PKCS1Padding)
+     * @param input - cipher text generated from encrypting using RSA
+     * @return - decrypted AES key
+     * @throws NoSuchAlgorithmException
+     * @throws NoSuchPaddingException
+     * @throws InvalidKeyException
+     * @throws IllegalBlockSizeException
+     * @throws BadPaddingException
+     */
     private SecretKey decryptRSA(String algorithm, String input) throws NoSuchAlgorithmException,
             NoSuchPaddingException, InvalidKeyException, IllegalBlockSizeException, BadPaddingException {
         Cipher cipher = Cipher.getInstance(algorithm, new BouncyCastleProvider());
@@ -703,7 +837,12 @@ public class Client {
         return originalKey;
     }
 
-    // hashing
+    /**
+     * Hashing message (using SHA256) to be sent to other client 
+     * 
+     * @param rawinput - original message to be hashed
+     * @return - calculated hash of message
+     */
     private static String sha256(String rawinput) {
         String hashout = "";
         try {
@@ -717,7 +856,12 @@ public class Client {
         return hashout;
     }
 
-    // compression
+    /**
+     * Compressing message to be encoded
+     * 
+     * @param data - message to be compressed
+     * @return base64 encoded compressed data
+     */
     private static String compress(String data) throws IOException {
         ByteArrayOutputStream bos = new ByteArrayOutputStream(data.length());
         GZIPOutputStream gzip = new GZIPOutputStream(bos);
@@ -728,6 +872,13 @@ public class Client {
         return Base64.getEncoder().encodeToString(compressed);
     }
 
+    /**
+     * Decompressing decrypted message  using GZIP
+     * 
+     * @param st - data to be decompressed from AES decryption
+     * @return - decompressed original message
+     * @throws IOException
+     */
     private static String decompress(String st) throws IOException {
         byte[] compressed = Base64.getDecoder().decode(st);
         ByteArrayInputStream bis = new ByteArrayInputStream(compressed);
@@ -743,7 +894,16 @@ public class Client {
         bis.close();
         return sb.toString();
     }
-    //Method for signing (Integrity)
+   
+    /**
+     * Signing the hash of message to be sent (integrity)
+     * 
+     * @param plainText - hash to be signed
+     * @param privateKey - private key of sending client
+     * @return - base64 encoded signature
+     * @throws Exception
+     */
+   
     public static String sign(String plainText, PrivateKey privateKey) throws Exception {
         Signature privateSignature = Signature.getInstance("SHA256withRSA");
         privateSignature.initSign(privateKey);
@@ -755,6 +915,15 @@ public class Client {
     }
 
 
+    /**
+     * Verification of the sent signature using senders public key and signature
+     * 
+     * @param plainText - hash to be signed
+     * @param signature - signature to be verified
+     * @param publicKey - public key of recieving client to verify with
+     * @return - boolean, true or false
+     * @throws Exception
+     */
     //Verify method for signing
     public static boolean verify(String plainText, String signature, PublicKey publicKey) throws Exception {
         Signature publicSignature = Signature.getInstance("SHA256withRSA");

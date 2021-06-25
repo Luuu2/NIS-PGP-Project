@@ -82,19 +82,28 @@ public class Server {
     private Hashtable<String, PublicKey> keyRing;
     static InetAddress addr;
  
+    /**
+     * Consutructor for server class
+     * 
+     * @param serverPort - port nmber to connect with client over
+     */
     public Server(int serverPort) {
         this.serverPort = serverPort;
         
         try{
             importKeyPairFromKeystoreFile("PGP-icert.pfx", "PGP-icert.cer", "PKCS12");
             generateKeyChain();
-            //System.out.println("Alice Public Key: "+ keyRing.get("Alice"));
-            //System.out.println("Bob Public Key: "+ keyRing.get("Bob"));
         } catch(Exception e){
             e.printStackTrace();
         }
         System.out.println("\n###################################\n");
     }
+
+    /**
+     * 
+     * Main method
+     * @param args
+     */
     public static void main(String[] args) {
         Security.addProvider(new BouncyCastleProvider());
         int port = 8818;
@@ -119,6 +128,9 @@ public class Server {
         
     }
 
+    /**
+     * Genrating key chain for server
+     */
     private void generateKeyChain(){
         FileInputStream Alice;
         FileInputStream Bob;
@@ -150,6 +162,14 @@ public class Server {
         }
     }
 
+    /**
+     * Import key stores and local certificates from files
+     * 
+     * @param fileNameKS - key store file name with user certificates 
+     * @param fileNameC - root certificate file name
+     * @param storeType 
+     * @throws Exception
+     */
     private void importKeyPairFromKeystoreFile(String fileNameKS, String fileNameC, String storeType) throws Exception {
         FileInputStream keyStoreOs;
         FileInputStream rootCert;
@@ -198,14 +218,21 @@ public class Server {
     }
 
 
+    /**
+     * Getting list of clients online
+     * 
+     * @return - list of type ServerWorker 
+     */
     public List<ServerWorker> getWorkerList() {
         return workerList;
     }
 
+    /**
+     * Running the client threads
+     * 
+     * @throws NoSuchAlgorithmException
+     */
     public void run() throws NoSuchAlgorithmException {
-        //generateKey();
-        //generateIv();
-        
         try (ServerSocket serverSocket = new ServerSocket(serverPort, 0, addr)) {
             System.out.println("Server is alive");
             System.out.println("Session Key: " + sharedKey);
@@ -232,11 +259,18 @@ public class Server {
         }
     }
 
+    /**
+     * Removing a client from client worker list
+     */
     public void removeWorker(ServerWorker serverWorker) {
-        
         workerList.remove(serverWorker);
 
     }
+
+    /**
+     * 
+     * Server subclass to handle and process client threads
+     */
     public class ServerWorker extends Thread  {
         private final Socket clientSocket;
         private final Server server;
@@ -440,6 +474,7 @@ public class Server {
             } finally {
                 lock.unlock();
             }
+            
         }
         
         // format msg login msg
@@ -453,7 +488,6 @@ public class Server {
             System.out.println("Encrypted Message: " + cipherRSA);
             System.out.println("\nEncrypted Session Key: " + cipherRSA);
             
-
             try{
                 List<ServerWorker> workerList = server.getWorkerList();
                 for (ServerWorker worker : workerList) {
@@ -623,6 +657,9 @@ public class Server {
     }
 
 
+    /**
+     * Subclass to handle clients
+     */
     public class UserClient{
         private static final String BC_PROVIDER = "BC";
         private final Certificate certificate;
@@ -645,6 +682,13 @@ public class Server {
         }
 
 
+        /**
+         * Generating hash for client password
+         * 
+         * @param user - client user name
+         * @param pw - client user password
+         * @return - hashed user password
+         */
 
         private byte[] generateSHA(String user, String pw){
             byte[] hPassword = new byte[0];
@@ -658,6 +702,13 @@ public class Server {
             }
             return hPassword;
         }
+
+        /**
+         * Verifying hash value 
+         * 
+         * @return - boolean, true or false
+         * @throws FileNotFoundException
+         */
     
         public boolean checkSHA() throws FileNotFoundException{
             File sct = new File("ServerCoolTings.txt");
