@@ -29,6 +29,7 @@ import java.net.ServerSocket;
 import java.net.Socket;
 
 import java.security.InvalidKeyException;
+import java.security.KeyFactory;
 import java.security.KeyStore;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -36,6 +37,7 @@ import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.security.SecureRandom;
 import java.security.Security;
+import java.security.Signature;
 import java.security.SignatureException;
 
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
@@ -43,6 +45,8 @@ import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import java.security.cert.Certificate;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
+import java.security.spec.InvalidKeySpecException;
+import java.security.spec.X509EncodedKeySpec;
 import java.security.cert.CertificateException;
 import java.security.cert.CertificateEncodingException;
 import javax.security.auth.x500.X500Principal;
@@ -74,6 +78,7 @@ public class Server {
     private Certificate BobCert; 
     private PrivateKey privateKey;
     private Hashtable<String, PublicKey> keyRing;
+    private BufferedOutputStream bos;
  
     public Server(int serverPort) {
         this.serverPort = serverPort;
@@ -264,6 +269,9 @@ public class Server {
                 e.printStackTrace();
             } catch (InterruptedException e) {
                 e.printStackTrace();
+            } catch (Exception e) {
+                // TODO Auto-generated catch block
+                e.printStackTrace();
             }
             System.out.println("Client End...");
         }
@@ -336,7 +344,7 @@ public class Server {
 
         }
         
-        private void handleClient() throws IOException, InterruptedException {
+        private void handleClient() throws Exception {
             System.out.println("Server is still alive");
     
             this.input = clientSocket.getInputStream();
@@ -493,7 +501,17 @@ public class Server {
             return login;
         }
     
-        private void handleLogin(OutputStream output, String[] tokens, Certificate certificate) throws IOException {
+        public String sign(String plainText, PrivateKey privateKey) throws Exception {
+            Signature privateSignature = Signature.getInstance("SHA256withRSA");
+            privateSignature.initSign(privateKey);
+            privateSignature.update(plainText.getBytes(StandardCharsets.UTF_8));
+        
+            byte[] signature = privateSignature.sign();
+        
+            return Base64.getEncoder().encodeToString(signature);
+        }
+
+        private void handleLogin(OutputStream output, String[] tokens, Certificate certificate) throws Exception {
             if(tokens.length == 3){
                 String login = tokens[1];
                 String password = tokens[2];
@@ -510,9 +528,46 @@ public class Server {
                     System.out.println("Sending Public key to "+user.userName);
                     //System.out.println(keyRing.get(user.userName).getEncoded().getClass());
                     if(user.userName.equalsIgnoreCase("Alice")){
+                        PublicKey bob = keyRing.get("Bob");
+                        byte [] bobBytes = bob.getEncoded();
+                        String signature = sign(bob.toString(),privateKey);
+                        FileOutputStream fos = new FileOutputStream("bSig.txt");
+                        bos = new BufferedOutputStream(fos);
+                        fos.write(signature.getBytes());
+
+                        byte [] kr = keyRing.get("Bob").getEncoded();
+                        ByteArrayInputStream b = new ByteArrayInputStream(kr);
+
+                        BufferedInputStream getkey = new BufferedInputStream(b);
+                        int keySize = getkey.available();
+                        System.out.println("Public Key Size: "+ keySize);
+                        byte[] key = new byte[keySize];
+                        getkey.read(key, 0, keySize);
+
+                        PublicKey otherUserKey = null;
+                        try {
+                            otherUserKey = KeyFactory.getInstance("RSA", BC_PROVIDER).generatePublic(new X509EncodedKeySpec(key));
+                        } catch (InvalidKeySpecException e) {
+                            System.out.println("Invalid key spec");
+                        } catch (NoSuchAlgorithmException e) {
+                            System.out.println("No such algorithm");
+                        }
+                        //System.out.println("Public Key ||| "+ otherUserKey.getClass());
+
+                        //System.out.println("Public Key || "+ otherUserKey.toString());
+
+
+
                         send(keyRing.get("Bob").getEncoded());
+                        //send (signature);
                     }else{
+                        PublicKey Alice = keyRing.get("Alice");
+                        String signature = sign(Alice.toString(),privateKey);
+                        FileOutputStream fos = new FileOutputStream("aSig.txt");
+                        bos = new BufferedOutputStream(fos);
+                        fos.write(signature.getBytes());
                         send(keyRing.get("Alice").getEncoded());
+                        //send(signature);
                     }
                     System.out.println("Public Key sent to "+ user.userName);
 
