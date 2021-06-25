@@ -275,9 +275,11 @@ public class Client {
             } catch (NoSuchAlgorithmException e) {
                 System.out.println("No such algorithm");
             }
+            System.out.println("~~~");
 
             System.out.println("Received other user's public key");
-            System.out.println("Public Key: "+ otherUserKey != null);
+            System.out.println("Public Key: "+ otherUserKey);
+            System.out.println("~~~");
 
             try{
                 if (userName.equalsIgnoreCase("Alice")){
@@ -479,7 +481,7 @@ public class Client {
                                 System.out.println("\nEncrypted Session Key: " + ciRSA);
                                 
                                 SecretKey aesKey = decryptRSA("RSA/ECB/PKCS1Padding", ciRSA);
-                                System.out.println("\nDecrypted Message: " + aesKey);
+                                System.out.println("\nDecrypted Session Key: " + aesKey);
                                 String decryptedAES = decryptAES("AES/CBC/PKCS5Padding", ciAES, aesKey, iv);
                                 String decompressedData = decompress(decryptedAES);
                                 String[] imgCap = decompressedData.split(Pattern.quote("|"), 2);
