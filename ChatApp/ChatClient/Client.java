@@ -96,7 +96,6 @@ public class Client {
 
     private Certificate certificate;
     private Certificate rootCertificate;
-    private Certificate otherUserCert = null;
     private Certificate serverCert;
     private PrivateKey privateKey;
     private PublicKey otherUserKey;
@@ -141,20 +140,16 @@ public class Client {
                 System.out.println("Error logging in");
             }
         } else {
-            System.out.println("Connect failed.");
+            System.out.println("Connect failed.\n#######################\n");
         }
     }
 
     private void importKeyPairFromKeystoreFile(String fileNameKS, String fileNameC, String alias, String storeType) throws Exception {
         FileInputStream keyStoreOs;
-        FileInputStream userCert;
         FileInputStream rootCert;
         try{
             System.out.print("Certificates Files Present check: ");
             keyStoreOs = new FileInputStream(fileNameKS);
-            //System.out.println(keyStoreOs);
-            userCert = new FileInputStream(fileNameC);
-            ///System.out.println(userCert);
             rootCert = new FileInputStream("PGP-rcert.cer");
             System.out.println("complete\n");
 
@@ -188,7 +183,7 @@ public class Client {
                 System.out.println(rootCertificate != null);
             }
             rootCert.close();
-            System.out.print("Certificates Retrieved");
+            System.out.println("Local Certificates Retrieved\n###############################\n");
 
         }catch(FileNotFoundException e){
             System.out.println("\nFile Input Stream Error");
@@ -258,7 +253,7 @@ public class Client {
             System.out.println("Certification Step - Failed");
             return loginUser;
         }
-        System.out.println("Certification Step - Complete");
+        System.out.println("Certification Step - Complete\n###############################\n");
         // Certificaition Step - END
 
         String cmd = "login|"+ userName + "|"+ password+"\n";
@@ -266,12 +261,9 @@ public class Client {
         String response = bufferIn.readLine();
         System.out.println("Response Line: " + response);
         if ("ok|login".equalsIgnoreCase(response)) {
-            
             //Receive otherUserKey
             BufferedInputStream getKey = new BufferedInputStream(serverIn);
-            while(getKey.available()<0){
-                //
-            }
+            while(getKey.available()<0){ }
             int keySize = getKey.available();
             byte[] key = new byte[294];
             getKey.read(key, 0, 294);
@@ -283,12 +275,12 @@ public class Client {
             } catch (NoSuchAlgorithmException e) {
                 System.out.println("No such algorithm");
             }
-
+            System.out.println("~~~");
 
             System.out.println("Received other user's public key");
-            System.out.println("Public Key: "+ otherUserKey != null);
+            System.out.println("Public Key: "+ otherUserKey);
+            System.out.println("~~~");
 
-            //System.out.println("Public Key: "+ otherUserKey.toString());
             try{
                 if (userName.equalsIgnoreCase("Alice")){
                     dis = new DataInputStream(new FileInputStream(new File("../ChatServer/bSig.txt")));
@@ -306,25 +298,22 @@ public class Client {
             }catch(Exception e){
                 e.printStackTrace();
             }
-            System.out.println(otherUserKey != null);
-            System.out.println(signature);
-            System.out.println(serverCert);
-            System.out.println(serverCert.getPublicKey());
+            System.out.println("Public Key Recieved" + otherUserKey != null);
             if (verify(otherUserKey.toString(),signature,serverCert.getPublicKey())){
-               System.out.println("signature verified");
+               System.out.println("Signature verified");
                msgReader();
                msgWriter();
             }
             else{
                 System.out.println("Alice/Bob public key was not verified to be from the server");
-                closeOpenStreams();
                 System.out.print("Exiting program...");
-                System.exit(0);
+                closeOpenStreams();
             }
+            System.out.println("Login Complete\n###############################\n");
             return true;
-        } else {
-            return false;
         }
+        System.out.println("Login Incomplete\n###############################\n");
+        return false;
     }
 
     public void generateKey() throws NoSuchAlgorithmException { // 256 bit key for 14 rounds
@@ -455,12 +444,19 @@ public class Client {
                                 String[] div = tokens[2].split(Pattern.quote("|"), 3); // splitting the third token
                                 String ciAES = div[0];
                                 String ciRSA = div[1];
+
                                 byte[] b = new byte[16];
                                 dis = new DataInputStream(new FileInputStream(new File("../ChatClient/IV.txt")));
                                 dis.readFully(b);
                                 iv = new IvParameterSpec(b);
                                 dis.close();
+
+                                System.out.println("Encrypted Session Key: " + ciRSA);
+                                System.out.println("\nEncrypted Message: " + ciAES);
+
                                 SecretKey aesKey = decryptRSA("RSA/ECB/PKCS1Padding", ciRSA);
+
+                                System.out.println("\nDecrypted session Key: " + aesKey);
                                 String decryptedAES = decryptAES("AES/CBC/PKCS5Padding", ciAES, aesKey, iv);
                                 String decompressedData = decompress(decryptedAES);
                                 System.out.println(sender + ": " + decodeText(decompressedData.split(Pattern.quote("|"),2)) + "\n");
@@ -480,12 +476,12 @@ public class Client {
                                 dis.readFully(b);
                                 iv = new IvParameterSpec(b);
                                 dis.close();
-                                // System.out.println("IV div:" + div[2]);
-                                // System.out.print("IV length: "+initVector.getIV());
-                                SecretKey aesKey = decryptRSA("RSA/ECB/PKCS1Padding", ciRSA);
-                                System.out.println("aesKey length: " + aesKey.getEncoded().length);
 
-                                // System.out.println(aesKey);
+                                System.out.println("\nEncrypted Message: " + ciAES);
+                                System.out.println("\nEncrypted Session Key: " + ciRSA);
+                                
+                                SecretKey aesKey = decryptRSA("RSA/ECB/PKCS1Padding", ciRSA);
+                                System.out.println("\nDecrypted Session Key: " + aesKey);
                                 String decryptedAES = decryptAES("AES/CBC/PKCS5Padding", ciAES, aesKey, iv);
                                 String decompressedData = decompress(decryptedAES);
                                 String[] imgCap = decompressedData.split(Pattern.quote("|"), 2);
@@ -496,11 +492,11 @@ public class Client {
                         } else {
                             System.out.println(response + "\n");
                         }
-                        System.out.println("In here");
                     }catch (Exception e) {
                         e.printStackTrace();
                         break;
                     }
+                    System.out.println("---");
                 }
             }
         };
@@ -516,7 +512,6 @@ public class Client {
         Thread writer = new Thread() {
             public void run() {
                 while (online) {
-                    System.out.println(userName + "'s writer is alive");
                     String message = scanner.nextLine();
                     String [] tokens = message.split(Pattern.quote("|"), 3);
                     if(message.equalsIgnoreCase("quit") || message.equalsIgnoreCase("logoff")){
@@ -524,34 +519,31 @@ public class Client {
                         online = false;
                         try{
                             serverOut.write(cmd.getBytes());
-                            //System.exit(0);
                         }catch (IOException e) {
                             e.printStackTrace();
                         }
-                        System.out.println("C");
                         closeOpenStreams();
-                        System.out.println("D");
-                        System.exit(0);
                     } else if (tokens[0].equalsIgnoreCase("img")) {
                         try {
                             generateKey();
-                            System.out.println("Got AES Key...");
                             generateIv();
-                            System.out.println("Got IV...");
                             FileOutputStream fos = new FileOutputStream(new File("IV.txt"));
                             BufferedOutputStream bos = new BufferedOutputStream(fos);
                             bos.write(sharedIv.getIV());
                             bos.close();
                             imageName = tokens[2];
+                            System.out.println("Session Key: " + sharedKey);
                             cipherAES = encryptAES("AES/CBC/PKCS5Padding", encodeString(tokens, receiver), sharedKey,
                                     sharedIv);
-                            System.out.println(sharedIv.getIV().length);
                             cipherRSA = encryptRSA("RSA/ECB/PKCS1Padding", sharedKey, otherUserKey);
-                            System.out.println("CipherRSA: " + cipherRSA.getBytes().length);
+
+                            System.out.println("\nEncrypted Session Key: " + cipherRSA);
+                            System.out.println("\nEncrypted Message: " + cipherAES);
+
                             String cmd = "img" + "|" + receiver + "|" + cipherAES + "|" + cipherRSA +"|"+ imageName + "\n";
-                            System.out.println("writing to server");
+                            //System.out.println("writing to server");
                             serverOut.write(cmd.getBytes());
-                            System.out.println("wrote to server");
+                            //System.out.println("wrote to server");
                         }catch (Exception e) {
                             e.printStackTrace();
                         }
@@ -563,15 +555,21 @@ public class Client {
                             BufferedOutputStream bos = new BufferedOutputStream(fos);
                             bos.write(sharedIv.getIV());
                             bos.close();
+                            System.out.println("Session Key: " + sharedKey);
                             cipherAES = encryptAES("AES/CBC/PKCS5Padding", encodeText(message, receiver), sharedKey,
                                     sharedIv);
                             cipherRSA = encryptRSA("RSA/ECB/PKCS1Padding", sharedKey, otherUserKey);
+
+                            System.out.println("\nEncrypted Session Key: " + cipherRSA);
+                            System.out.println("\nEncrypted Message: " + cipherAES);
+
                             String cmd = "msg|" + receiver + "|" + cipherAES + "|" + cipherRSA + "\n";
                             serverOut.write(cmd.getBytes());
                         } catch (Exception e) {
                             e.printStackTrace();
                         }
                     }
+                    System.out.println("---");
                 }
                 
             }
@@ -582,7 +580,7 @@ public class Client {
     private String encodeString(String[] tokens, String receiver) throws Exception { // tokens format:
         // [img,caption,file]
         String caption = tokens[1];
-        //System.out.println(caption);
+
         File f = new File("../SendingImages/"+tokens[2]); // file to be taken in (image path)
         FileInputStream fis = new FileInputStream(f); // taking in file
         System.out.println("Still sending to server....");
@@ -593,6 +591,8 @@ public class Client {
         String hashout = sha256(base64Image + "|" + caption);
         String signature = sign(hashout,privateKey);
         String encodedImgCap = compress(base64Image + "|" + caption + "|" + hashout+ "|"+ signature);
+
+        System.out.println("Hashed Image Details: " + hashout);
         return encodedImgCap;
     }
 
@@ -608,17 +608,17 @@ public class Client {
             
             //calculating hash
             String hashin = sha256(tokens[0]+"|"+captionHashSign[0]);
-            String signature= captionHashSign[2];
+            String signature = captionHashSign[2];
+            System.out.println("\nHashed Image Details: " + hashin);
             
             if (captionHashSign[1].equalsIgnoreCase(hashin) && verify(hashin, signature,otherUserKey)) {
                 String file = new String(tokens[0]).replaceAll(" +", "+");
                 byte[] b = Base64.getDecoder().decode(file);
                 fos.write(b); // write bytes to new file
                 //System.out.println("Received!");
-                System.out.println("Image received from: "+ sender);
+                System.out.println("\nImage received from: "+ sender);
                 System.out.println("Image filename: " + imageName);
                 System.out.println("Image caption: " +  captionHashSign[0]);
-                
             } else {
                 System.out.println("Confidentiality breached! Could not receive file because it has been compromised.");
             }
@@ -630,6 +630,7 @@ public class Client {
     private String encodeText(String message, String reciever) throws IOException {
         String base64Msg = Base64.getEncoder().encodeToString(message.getBytes());
         String hashout = sha256(base64Msg);
+        System.out.println("Hashed Message: " + hashout);
         String encodedMsg = compress(base64Msg + "|" + hashout);
         return encodedMsg;
     }
@@ -642,6 +643,7 @@ public class Client {
 
             // calculating hash
             String hashin = sha256(tokens[0]);
+            System.out.println("\nHashed Message: " + hashin);
             if (textHash.equalsIgnoreCase(hashin)) {
                 byte[] b = Base64.getDecoder().decode(tokens[0]);
                 text = new String (b);
@@ -682,7 +684,6 @@ public class Client {
     // RSA encryption + decrypting
     private String encryptRSA(String algorithm, SecretKey input, PublicKey pkey) throws NoSuchAlgorithmException,
             NoSuchPaddingException, InvalidKeyException, IllegalBlockSizeException, BadPaddingException {
-
 
         Cipher cipher = Cipher.getInstance(algorithm, new BouncyCastleProvider());
         cipher.init(Cipher.ENCRYPT_MODE, pkey);

@@ -207,12 +207,13 @@ public class Server {
         //generateIv();
         
         try (ServerSocket serverSocket = new ServerSocket(serverPort, 0, addr)) {
-            System.out.println("Server is alive\n");
+            System.out.println("Server is alive");
+            System.out.println("Session Key: " + sharedKey);
+            System.out.println(" \n##########################################\n ");
             while (true) {   
                 Socket clientSocket = serverSocket.accept();
                 ServerWorker worker = new ServerWorker(this, clientSocket, sharedKey, sharedIv);
                 
-                //// ADD LOCK
                 lock.lock();
                 try {
                     workerList.add(worker);
@@ -222,8 +223,6 @@ public class Server {
                     lock.unlock();
                 }
                 
-                
-                //// ADD LOCK
                 System.out.println("New ServerWorker Thread created and added to list");
                 worker.start();
             }
@@ -232,19 +231,7 @@ public class Server {
             e.printStackTrace();
         }
     }
-/*
-    public void generateKey() throws NoSuchAlgorithmException { // 256 bit key for 14 rounds
-        KeyGenerator keyGenerator = KeyGenerator.getInstance("AES");
-        keyGenerator.init(256);
-        sharedKey = keyGenerator.generateKey(); 
-    }
 
-    public void generateIv() { // IV vector should be the same for each client to decrypt/encrypt// reciever
-        byte[] iv = new byte[16];
-        new SecureRandom().nextBytes(iv);
-        sharedIv = new IvParameterSpec(iv);
-    }
-*/
     public void removeWorker(ServerWorker serverWorker) {
         
         workerList.remove(serverWorker);
@@ -320,7 +307,7 @@ public class Server {
             
             try{
                 BufferedInputStream bis = new BufferedInputStream(input);
-                System.out.print("Check User (A/B) Certificate: ");
+                System.out.print("Check User Certificate: ");
                 certFactory = CertificateFactory.getInstance("X.509");
                 
                 cert = (X509Certificate)certFactory.generateCertificate(bis);
@@ -333,11 +320,13 @@ public class Server {
              * Verifying user the X509 certificate 
             **/
             try {
-                System.out.println("Verification of User Certificate");
+                System.out.print("Verificate of User Certificate: ");
                 cert.verify(rootCertificate.getPublicKey(), Security.getProvider(BC_PROVIDER)); 
+                System.out.println(cert != null);
             } catch (CertificateException | NoSuchAlgorithmException | InvalidKeyException e) {
                 //handle wrong algos
                 System.out.print("Handle wrong algorithms");
+                clientSocket.close();
                 return null;
             } catch (SignatureException ex) {
                 //signature validation error
@@ -381,7 +370,7 @@ public class Server {
             this.output = clientSocket.getOutputStream();
             this.dos = new DataOutputStream(output);
             // Certificaition Step
-            System.out.println("Certification Step - Beginning");
+            System.out.println("#########################\nCertification Step - Beginning\n");
             Certificate cert = null;
             try{
                 cert = handleClientCertification();
@@ -392,8 +381,9 @@ public class Server {
             if(cert == null){
                 System.out.println("Certification Step - Failed");
                 throw new IOException("User certificate not present");
-            }
-            System.out.println("Certification Step - Complete\n");
+            }else{ System.out.println(cert); }
+            System.out.print("Certification Step - Complete");
+            System.out.println("\n#########################\n");
             // Certificaition Step - END
             BufferedReader reader = new BufferedReader(new InputStreamReader(input));
             String line;
@@ -401,7 +391,8 @@ public class Server {
     
                 String[] tokens = line.split(Pattern.quote("|"),3);
                 String cmd = tokens[0];
-                System.out.print("\nCommand by " + login + ": ");
+                System.out.print("\n---");
+                System.out.print("Command by " + login + ": ");
                 System.out.println(cmd);
                 if (tokens != null && tokens.length > 0) {
                     System.out.println("Looking at tokens... " );
@@ -421,59 +412,20 @@ public class Server {
                         output.write(msg.getBytes());
                     }
                 }
+                System.out.print("---\n");
             }
         }
-    
-        /*
-        public void generateKey(String name) throws NoSuchAlgorithmException { // 256 bit key for 14 rounds
-    
-        public void generateKey(String name) throws NoSuchAlgorithmException { // 256 bit key for 14 rounds
-            String sendTo = name; // reciever
-            List<ServerWorker> workerList = server.getWorkerList();
-            for (ServerWorker worker : workerList) {
-                if (sendTo.equalsIgnoreCase(worker.getLogin())) {
-                    try {
-                        worker.sendKey(sharedKey);
-                        System.out.println(sharedKey);
-                    } catch (IOException e) {
-                        // TODO Auto-generated catch block
-                        e.printStackTrace();
-                    }
-                }
-            }
-    
-        }
-    
-        private void sendKey(SecretKey key) throws IOException {
-            if (login != null) {
-                dos.write(key.getEncoded());
-               // objectOutputStream.writeObject(key);
-            }
-        }
-                
-        public void generateIv(String name) { // IV vector should be the same for each client to decrypt/encrypt
-            String sendTo = name; // reciever
-            List<ServerWorker> workerList = server.getWorkerList();
-            for (ServerWorker worker : workerList) {
-                if (sendTo.equalsIgnoreCase(worker.getLogin())) {
-                    try {
-                        //IvParameterSpec Iv = new IvParameterSpec(iv);
-                        output.write(sharedIv.getIV());
-                    } catch (IOException e) {
-                        e.printStackTrace();
-                    }
-                }
-            }
-        }
-    */
-        
-    private void handleImage(String[] tokens) {
+
+        private void handleImage(String[] tokens) {
             String sendTo = tokens[1]; // reciever
             String cipherAES = tokens[2]; // cipherAES
             String cipherRSA = tokens[3]; // cipherRSA
             String image = tokens[4]; // cipherRSA
-             
-            System.out.println("handling image");
+
+            System.out.println("Handling image");
+            System.out.println("\nEncrypted Message: " + cipherRSA);
+            System.out.println("\nEncrypted Session Key: " + cipherRSA);                             
+
             lock.lock();
             List<ServerWorker> workerList = server.getWorkerList();
             try {
@@ -488,15 +440,20 @@ public class Server {
             } finally {
                 lock.unlock();
             }
-            
         }
-    
+        
         // format msg login msg
         private void handleMessage(String[] tokens) {
             String sendTo = tokens[1]; // reciever
             String cipherAES = tokens[2]; // cipherAES
             String cipherRSA = tokens[3]; // cipherRSA
             lock.lock();
+
+            System.out.println("Handling message");
+            System.out.println("Encrypted Message: " + cipherRSA);
+            System.out.println("\nEncrypted Session Key: " + cipherRSA);
+            
+
             try{
                 List<ServerWorker> workerList = server.getWorkerList();
                 for (ServerWorker worker : workerList) {
@@ -572,49 +529,28 @@ public class Server {
                     System.out.println("User logged in successfully: " + login);
                     
                     //send other user public key
+                    System.out.println("~~~");
                     System.out.println("Sending Public key to "+user.userName);
                     //System.out.println(keyRing.get(user.userName).getEncoded().getClass());
                     if(user.userName.equalsIgnoreCase("Alice")){
-                        PublicKey bob = keyRing.get("Bob");
-                        byte [] bobBytes = bob.getEncoded();
-                        String signature = sign(bob.toString(),privateKey);
+                        PublicKey bkr = keyRing.get("Bob");
+                        String signature = sign(bkr.toString(),privateKey);
                         FileOutputStream fos = new FileOutputStream("bSig.txt");
                         fos.write(signature.getBytes());
 
-                        byte [] kr = keyRing.get("Bob").getEncoded();
-                        ByteArrayInputStream b = new ByteArrayInputStream(kr);
-
-                        BufferedInputStream getkey = new BufferedInputStream(b);
-                        int keySize = getkey.available();
-                        System.out.println("Public Key Size: "+ keySize);
-                        byte[] key = new byte[keySize];
-                        getkey.read(key, 0, keySize);
-
-                        PublicKey otherUserKey = null;
-                        try {
-                            otherUserKey = KeyFactory.getInstance("RSA", BC_PROVIDER).generatePublic(new X509EncodedKeySpec(key));
-                        } catch (InvalidKeySpecException e) {
-                            System.out.println("Invalid key spec");
-                        } catch (NoSuchAlgorithmException e) {
-                            System.out.println("No such algorithm");
-                        }
-                        //System.out.println("Public Key ||| "+ otherUserKey.getClass());
-
-                        //System.out.println("Public Key || "+ otherUserKey.toString());
-
-
-
-                        send(keyRing.get("Bob").getEncoded());
-                        //send (signature);
+                        System.out.println("Public Key: "+ bkr);
+                        send(bkr.getEncoded());
                     }else{
-                        PublicKey Alice = keyRing.get("Alice");
-                        String signature = sign(Alice.toString(),privateKey);
+                        PublicKey akr = keyRing.get("Alice");
+                        String signature = sign(akr.toString(),privateKey);
                         FileOutputStream fos = new FileOutputStream("aSig.txt");
                         fos.write(signature.getBytes());
-                        send(keyRing.get("Alice").getEncoded());
-                        //send(signature);
+
+                        System.out.println("Public Key: "+ akr);
+                        send(akr.getEncoded());
                     }
                     System.out.println("Public Key sent to "+ user.userName);
+                    System.out.println("~~~");
 
                     String onlineMsg = "online|"+login +"\n";
 
