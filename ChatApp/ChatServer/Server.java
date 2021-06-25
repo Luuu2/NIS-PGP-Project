@@ -504,7 +504,14 @@ public class Server {
         }
     
         private void handleLogoff() {
-            server.removeWorker(this);
+            lock.lock();
+            try {
+                server.removeWorker(this);
+            } catch (Exception e) {
+                System.out.print("Exception: ");
+                e.printStackTrace();
+            } finally { lock.unlock(); }
+            
             System.out.println("User logged off successfully: " + login);
             String offLineMsg = "Offline|" + login + "\n";
             lock.lock();
@@ -517,7 +524,6 @@ public class Server {
                 System.out.print("IO Exception: ");
                 e.printStackTrace();
             } finally { lock.unlock(); }
-            
             
             System.out.println("Remaining workers: " + workerList.size());
             lock.lock();
